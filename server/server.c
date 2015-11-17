@@ -35,7 +35,7 @@ SOFTWARE.
 #include <sys/resource.h>
 #include <syslog.h>
 #include <time.h>
-
+#include "parse_command.h"
 #ifdef CHECKMEM
 #include "leak_detector_c.h"
 #endif
@@ -472,7 +472,7 @@ int main(int argc, char** argv)
                                 }
                                 else if (header->type == MESSAGE)
                                 {
-                                    int ret = recvMessage(sockfd,redis,header,buffer,&g_clients[i]);
+                                    int ret = recvMessage(sockfd,header,buffer,&g_clients[i]);
                                     if(ret != 1)
                                     {
                                         free(header);
@@ -650,27 +650,10 @@ int main(int argc, char** argv)
             pthread_mutex_lock(&client_lock);
             
 #ifdef __EPOLL__
-            /*
-                	    struct epoll_event event;
-                		event.data.ptr = clientx;
-                		event.events =  EPOLLIN|EPOLLET;  //EPOLLET
-                		epoll_ctl(epollfd, EPOLL_CTL_MOD, clientx->fd, &event);
-            */
             epoll_ctl(g_epollfd,  EPOLL_CTL_DEL, client->fd, NULL);
-            /*
-            //epoll_ctl(g_epollfd,  EPOLL_CTL_DEL, g_clients[active_socket_connect-1].fd, NULL);
-            //memcpy(client,&g_clients[active_socket_connect-1],sizeof(CLIENT));
-            //client->clientId = clientid;
-            //changeClientId(client->drivceId,clientid);
-            //addepollevent(client->fd,client);
-            //client[active_socket_connect-1].fd = -1;
-            //g_maxi--;
-            //maxi--;
-            */
             client->fd = -1;
             memset(client->drivceId,0,sizeof(client->drivceId));
             active_socket_connect--;
-            
 #endif
             pthread_mutex_unlock(&client_lock);
         }
@@ -719,10 +702,9 @@ int main(int argc, char** argv)
      *
      *
      ***********************/
-    int recvMessage(int sockfd,redisContext* redis,CLIENT_HEADER *header,void* buffer_header,CLIENT* client)
+    int recvMessage(int sockfd,CLIENT_HEADER *header,void* buffer_header,CLIENT* client)
     {
         char guid[32]= {0};
-        redisReply* reply = NULL;
         int sendto = header->sendto;
         //int userid = header->userid;
         char tochar[64] = {0};
@@ -747,7 +729,6 @@ int main(int argc, char** argv)
             memcpy(message,buffer+sendto*64,header->contentLength);
             char* tmpMessage = (char*)message;
             tmpMessage[header->contentLength] = '\0';
-//            message[header->contentLength] = '\0';
         }
         else
         {
@@ -795,14 +776,7 @@ int main(int argc, char** argv)
         if(message != 0)
         {
             free(message);
-            //message = 0;
         }
-        /*
-        	struct epoll_event event;
-        	event.data.ptr = client;
-        	event.events =  EPOLLIN|EPOLLET;  //EPOLLET
-        	epoll_ctl(epollfd, EPOLL_CTL_MOD, client->fd, &event);
-        */
         send_OK(sockfd,MESSAGE_YES);
         return 1;
     }
@@ -886,14 +860,12 @@ int main(int argc, char** argv)
 
     void* read_thread_function(void* client_t)
     {
-        void* buf = malloc(MAXBUF);
+        char buf[MAXBUF];// = malloc(MAXBUF);
         int sockfd;
-        CLIENT* clientx = (CLIENT*)client_t;
-        sockfd = clientx->fd;
+        CLIENT* client = (CLIENT*)client_t;
+        sockfd = client->fd;
         int n  = -1;
         memset(buf,0,MAXBUF + 1);
-        int redisID;
-        redisContext* redis = getRedis(&redisID);
         int reads = 1;
         int epollfd = g_epollfd;
         if((n = recv(sockfd,buf,MAXBUF,0)) > 0)
@@ -912,8 +884,43 @@ int main(int argc, char** argv)
             {
                 //TODO it is may xmpp
             }
+            client_header_2_t header;
+            memset(&header,0,sizeof(client_header_2_t));            
+            char* bufs = parseClientHeader((void*)buf,&header);
+            if(bufs == NULL)
+            	goto recv_error_close_client;
+            n -= sizeof(client_header_2_t);
+            if(header.command == COMMAND_PING){
+				server_header_2_t* sheader = createServerPing(system_config.serverid);
+				int ret = send(sockfd,sheader,sizeof(server_header_2_t),0);
+				if(ret <= 0)
+					goto recv_error_close_client;
+            }
+            else if(header.command == COMMAND_HELO){        	
+            	int ret = parseClientHelo(buf,client->drivceId,client->token,header.messagetype);
+            	if(ret < 1)
+            		goto recv_error_close_client;
+            }
+            else if(header.command == COMMAND_BYE){
+            	goto recv_error_close_client;
+            }
+            else if(header.command == COMMAND_MESSAGE){
+            	int ret = parseClientMessage(sockfd,buf,&header,client->drivceId,client->token,n,
+							inet_ntoa(client->addr.sin_addr),system_config.tempPath);
+				if(ret < 0)
+					goto recv_error_close_client;
+				server_header_2_t* sheader = createServerHeader(system_config.serverid,COMMAND_YES,MESSAGE_TYPE_NULL);
+				ret = send(sockfd,sheader,sizeof(server_header_2_t),0);
+				if(ret <= 0)
+					goto recv_error_close_client;
+            }
+            else if(header.command == COMMAND_OTHER_MESSAGE){
+            	//...
+            }
+            
             //here is custom protocol in read_thread_function
             //dump_data(buf,n);
+            /*
             CLIENT_HEADER* header = malloc(sizeof(CLIENT_HEADER));
             memset(header,0,sizeof(CLIENT_HEADER));
             memcpy(header,buf,sizeof(CLIENT_HEADER));
@@ -969,18 +976,20 @@ int main(int argc, char** argv)
                     sum += tempret;
                 }
             }
-            pthread_mutex_unlock(&clientx->opt_lock);
+            
+            pthread_mutex_unlock(&clientx->opt_lock);*/
             //Log("totalLength=%d,sum=%d\n",header->totalLength,sum);
             //end
-            char token[255] = {0};
-            strcpy(token,header->clienttoken);
+            //char token[255] = {0};
+            //strcpy(token,header->clienttoken);
+            /*
             if(header->type == MESSAGE_HELO)
             {
-                send_helo(sockfd,header,clientx,token);
+                //send_helo(sockfd,header,clientx,token);
             }
             else if(header->type == MESSAGE_PING)
             {
-                send_OK(sockfd,MESSAGE_PING);
+                //send_OK(sockfd,MESSAGE_PING);
                 //save in redis
             }
             else if (header->type == MESSAGE)
@@ -988,7 +997,7 @@ int main(int argc, char** argv)
                 void* recvBuf = buffer;
                 if(buffer != NULL)
                     recvBuf = recvBuf+sizeof(CLIENT_HEADER);
-                int ret = recvMessage(sockfd,redis,header,recvBuf,clientx);
+                int ret = recvMessage(sockfd,header,recvBuf,clientx);
                 if(ret != 1)
                 {
                     //if(buffer != NULL)
@@ -1006,38 +1015,41 @@ int main(int argc, char** argv)
                 Log("client say goodbye '%s'\n", inet_ntoa(clientx->addr.sin_addr));
                 goto recv_error_close_client;
             }
-            /*
+            
             else if(header->type == SERVIER){
 
             }
             */
             else
             {
-                Log("client say unkown code:%d ,%s,len:%d,recv:%s\n",header->type,inet_ntoa(clientx->addr.sin_addr),n,buf);
+                Log("client say unkown code:%d ,%s,len:%d,recv:%s\n",header.messagetype,
+				inet_ntoa(client->addr.sin_addr),n,buf);
 recv_error_close_client:
-                pthread_mutex_unlock(&clientx->opt_lock);
-                removeClient(clientx);
+                pthread_mutex_unlock(&client->opt_lock);
+                removeClient(client);
                 //close_socket(sockfd,g_clients,clientx->clientId,&allset,epollfd);
-                close_socket(clientx,&allset);
+                close_socket(client,&allset);
 
             }
+            /*
             if(header->totalLength>0 && buffer != NULL)
             {
                 free(buffer);
             }
             free(header);
+            */
         }
         else
         {
-            pthread_mutex_unlock(&clientx->opt_lock);
+            pthread_mutex_unlock(&client->opt_lock);
             Log("recv data< 0 errno:%d£¬error msg: '%s'\n", errno, strerror(errno));
-            removeClient(clientx);
+            removeClient(client);
             //close_socket(sockfd,g_clients,clientx->clientId,&allset,epollfd);
-            close_socket(clientx,&allset);
+            close_socket(client,&allset);
         }
-
-        free(buf);
-        returnRedis(redisID);
+		pthread_mutex_unlock(&client->opt_lock);
+        //free(buf);
+        //returnRedis(redisID);
         return NULL;
     }
 

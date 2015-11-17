@@ -35,6 +35,7 @@ SOFTWARE.
 #define MESSAGE_TYPE_GET_MESSAGE_LIST 0xF31
 #define MESSAGE_TYPE_GET_MESSAGE 0xF41
 */
+#define MESSAGE_TYPE_NULL 0xF0
 #define MESSAGE_TYPE_TXT  0xF1
 #define MESSAGE_TYPE_IMG  0xF2
 #define MESSAGE_TYPE_AUDIO  0xF3
@@ -59,6 +60,7 @@ SOFTWARE.
 #define COMMAND_SERVER 		0xA3
 #define COMMAND_BYE 		0xA4
 #define COMMAND_YES 		0xA5
+#define COMMAND_OTHER_MESSAGE 	0xA6
 
 #ifdef S_OK
 	#undef S_OK
@@ -165,13 +167,13 @@ typedef struct CLIENT_HEADER{
 }CLIENT_HEADER;
 
 
-
+/*
 typedef struct SEND_TO{
     char ip[16];
     char sendtoken[64];
     int userid;
 }SEND_TO;
-
+*/
 typedef struct SERVER_HEADER{
     int messageCode;
 	int type;
@@ -187,6 +189,7 @@ typedef struct CLIENT {
     int clientId;
     int serverid;
 	char drivceId[64];	
+	char token[64];//ios token
 	int protocol;
 	int clienttype;/*0=android,1=ios,2=web*/
     struct sockaddr_in addr;
