@@ -1,24 +1,3 @@
-/******************************************************************************
-  Copyright (c) 2015 by Chen.Hu  - 996129302@qq.com
- 
-Permission is hereby granted, free of charge, to any person obtaining a copy of
-this software and associated documentation files (the "Software"), to deal in
-the Software without restriction, including without limitation the rights to
-use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies
-of the Software, and to permit persons to whom the Software is furnished to do
-so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
-******************************************************************************/
 package com.example.test;
 
 import java.util.ArrayList;
@@ -56,7 +35,7 @@ public class MainActivity extends Activity {
 	private IMAdapter adapter;
 	private Button pic;
 	final ArrayList list = new ArrayList();
-	private String mine = "test";
+	private String mine = "kuer";
 
 	public static String getUUID() {
 		String uuid = UUID.randomUUID().toString().trim().replaceAll("-", "");
@@ -76,16 +55,16 @@ public class MainActivity extends Activity {
 		adapter = new IMAdapter(getApplicationContext(), imList);
 		listView.setAdapter(adapter);
 		// list.get(index)
-		list.add("abc");
-		list.add("kuer");
+		list.add("test");
 		sc.start("223.202.67.123", 1234, mine);
 		send.setOnClickListener(new OnClickListener() {
 
 			@Override
 			public void onClick(View v) {
+				// TODO Auto-generated method stub
+				sc.sendMessageNative(mine, getUUID(), Cache.MESSAGE_TYPE_TEXT,
+						edit.getText().toString(), list);
 				String messageid = getUUID();
-				sc.sendMessageNative(mine, messageid,Cache.MESSAGE_TYPE_TEXT, edit
-						.getText().toString(), list);
 				IMBean im = new IMBean(edit.getText().toString(),
 						Cache.SEND_TO, Cache.MESSAGE_TYPE_TEXT, Cache.SEND_ING,
 						messageid);
@@ -137,13 +116,11 @@ public class MainActivity extends Activity {
 
 		@Override
 		public void onReceive(Context context, Intent intent) {
-			if (intent.getStringExtra("messageid") != null) {
+			if (intent.getIntExtra("status", Cache.SEND_SUCCESS) == Cache.SEND_ING) {
 				for (int i = 0; i < imList.size(); i++) {
-					if (imList.get(i).getUuId()
-							.equals(intent.getStringExtra("messageid"))) {
+					if (imList.get(i).getStatus() == Cache.SEND_ING) {
 						imList.get(i).setStatus(Cache.SEND_SUCCESS);
 						adapter.notifyDataSetChanged();
-						return;
 					}
 				}
 			} else {
@@ -181,9 +158,9 @@ public class MainActivity extends Activity {
 				String img_path = actualimagecursor
 						.getString(actual_image_column_index);
 				System.out.println("图片真实路径：" + img_path);
+				sc.sendMessageNative(mine, getUUID(), Cache.MESSAGE_TYPE_FILE,
+						img_path, list);
 				String messageid = getUUID();
-				sc.sendMessageNative(mine,messageid ,Cache.MESSAGE_TYPE_FILE, img_path,
-						list);
 				IMBean im = new IMBean("file:/" + img_path, Cache.SEND_TO,
 						Cache.MESSAGE_TYPE_FILE, Cache.SEND_ING, messageid);
 				imList.add(im);

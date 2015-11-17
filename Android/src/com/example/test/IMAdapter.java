@@ -1,24 +1,3 @@
-/******************************************************************************
-  Copyright (c) 2015 by Chen.Hu  - 996129302@qq.com
- 
-Permission is hereby granted, free of charge, to any person obtaining a copy of
-this software and associated documentation files (the "Software"), to deal in
-the Software without restriction, including without limitation the rights to
-use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies
-of the Software, and to permit persons to whom the Software is furnished to do
-so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
-******************************************************************************/
 package com.example.test;
 
 import java.util.List;
@@ -96,7 +75,7 @@ public class IMAdapter extends BaseAdapter {
 		}
 		if (list.get(position).getMessage_type() == Cache.MESSAGE_TYPE_TEXT) {
 			vh.image1.setVisibility(View.GONE);
-			vh.image2.setVisibility(View.GONE);
+			vh.linear_image.setVisibility(View.GONE);
 			if (list.get(position).getType() == Cache.SEND_FROM) {
 				vh.linear_text.setVisibility(View.GONE);
 				vh.type1.setText(list.get(position).getMessage());
@@ -110,10 +89,10 @@ public class IMAdapter extends BaseAdapter {
 				vh.type2.setText(list.get(position).getMessage());
 			}
 		} else {
+			vh.linear_text.setVisibility(View.GONE);
 			vh.type1.setVisibility(View.GONE);
-			vh.type2.setVisibility(View.GONE);
 			if (list.get(position).getType() == Cache.SEND_FROM) {
-				vh.linear_text.setVisibility(View.GONE);
+				vh.linear_image.setVisibility(View.GONE);
 				imageLoder.displayImage(list.get(position).getMessage(),
 						vh.image1, dio);
 			} else {
@@ -141,7 +120,9 @@ public class IMAdapter extends BaseAdapter {
 
 	public void resetView(ViewHolder vh) {
 		vh.linear_text.setVisibility(View.VISIBLE);
-		vh.type2.setVisibility(View.VISIBLE);
+		vh.type1.setVisibility(View.VISIBLE);
+		vh.linear_image.setVisibility(View.VISIBLE);
+		vh.image1.setVisibility(View.VISIBLE);
 	}
 
 }
