@@ -20,7 +20,6 @@ extern void MD5Update();
 extern void MD5Final();
 extern void MD5Transform();
 
-extern char* createMd5(const char* str,char* retStr);
 /*
 * This is needed to make RSAREF happy on some MS-DOS compilers.
 */

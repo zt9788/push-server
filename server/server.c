@@ -616,8 +616,6 @@ int main(int argc, char** argv)
 
     void send_helo(int sockfd,CLIENT_HEADER	*header,CLIENT* client,char* deviceid)
     {
-        //save in redis header infomation
-        redisReply* reply = NULL;
         char time[255];
         formattime(time,NULL);
         struct sockaddr_in addr;
@@ -884,6 +882,7 @@ int main(int argc, char** argv)
             {
                 //TODO it is may xmpp
             }
+            
             client_header_2_t header;
             memset(&header,0,sizeof(client_header_2_t));            
             char* bufs = parseClientHeader((void*)buf,&header);
@@ -898,6 +897,7 @@ int main(int argc, char** argv)
             }
             else if(header.command == COMMAND_HELO){        	
             	int ret = parseClientHelo(buf,client->drivceId,client->token,header.messagetype);
+            	//send_helo() TODO
             	if(ret < 1)
             		goto recv_error_close_client;
             }
@@ -917,109 +917,9 @@ int main(int argc, char** argv)
             else if(header.command == COMMAND_OTHER_MESSAGE){
             	//...
             }
-            
-            //here is custom protocol in read_thread_function
-            //dump_data(buf,n);
-            /*
-            CLIENT_HEADER* header = malloc(sizeof(CLIENT_HEADER));
-            memset(header,0,sizeof(CLIENT_HEADER));
-            memcpy(header,buf,sizeof(CLIENT_HEADER));
-            void* buffer = NULL;
-            void* tempBuffer = NULL;
-            if(header->totalLength>0)
-            {
-                buffer = malloc(header->totalLength);
-                memcpy(buffer,buf,n);
-                tempBuffer = buffer;
-            }
-            //Log("received data from  %s:%s type is:%02X,mtype is:%02X\n",inet_ntoa(clientx->addr.sin_addr),clientx->drivceId,header->type,header->messagetype);
-            //more then MAXBUF begin
-            int sum = n;
-            //Log("header->totalLength:%d,n=%d\n",header->totalLength,n);
-            if(header->totalLength>MAXBUF && header->totalLength > n)
-            {
-                while(1)
-                {
-                    int tempret = 0;
-                    memset(buf,0,MAXBUF);
-                    if((header->totalLength-sum)>MAXBUF)
-                    {
-                        tempret = recv(sockfd,buf,MAXBUF,0);
-                        if(tempret <=0)
-                        {
-                            goto recv_error_close_client;
-                        }
-
-                        Log("recv length=%d\n",tempret);
-                    }
-                    else
-                    {
-                        tempret = recv(sockfd,buf,header->totalLength-sum,0);
-                        Log("recv length=%d\n",tempret);
-                        if(tempret <=0)
-                        {
-                            goto recv_error_close_client;
-                        }
-                        memcpy(tempBuffer+sum,buf,tempret);
-                        sum+=tempret;
-                        if(header->totalLength-sum == 0)
-                            break;
-                        else
-                            continue;
-                    }
-                    if(tempret < 0)
-                    {
-                        goto recv_error_close_client;
-                    }
-                    if(tempret >0)
-                        memcpy(tempBuffer+sum,buf,tempret);
-                    sum += tempret;
-                }
-            }
-            
-            pthread_mutex_unlock(&clientx->opt_lock);*/
-            //Log("totalLength=%d,sum=%d\n",header->totalLength,sum);
-            //end
-            //char token[255] = {0};
-            //strcpy(token,header->clienttoken);
-            /*
-            if(header->type == MESSAGE_HELO)
-            {
-                //send_helo(sockfd,header,clientx,token);
-            }
-            else if(header->type == MESSAGE_PING)
-            {
-                //send_OK(sockfd,MESSAGE_PING);
-                //save in redis
-            }
-            else if (header->type == MESSAGE)
-            {
-                void* recvBuf = buffer;
-                if(buffer != NULL)
-                    recvBuf = recvBuf+sizeof(CLIENT_HEADER);
-                int ret = recvMessage(sockfd,header,recvBuf,clientx);
-                if(ret != 1)
-                {
-                    //if(buffer != NULL)
-                    //	free(buffer);
-                    //break;
-                }
-            }
-            else if(header->type == S_OK)
-            {
-
-            }
-            else if(header->type == MESSAGE_BYE)
-            {
-                send_OK(sockfd,MESSAGE_BYE);
-                Log("client say goodbye '%s'\n", inet_ntoa(clientx->addr.sin_addr));
-                goto recv_error_close_client;
-            }
-            
-            else if(header->type == SERVIER){
-
-            }
-            */
+            else if(header.command == COMMAND_SERVER){
+				//...
+            }            
             else
             {
                 Log("client say unkown code:%d ,%s,len:%d,recv:%s\n",header.messagetype,
@@ -1027,29 +927,18 @@ int main(int argc, char** argv)
 recv_error_close_client:
                 pthread_mutex_unlock(&client->opt_lock);
                 removeClient(client);
-                //close_socket(sockfd,g_clients,clientx->clientId,&allset,epollfd);
                 close_socket(client,&allset);
-
+                return NULL;
             }
-            /*
-            if(header->totalLength>0 && buffer != NULL)
-            {
-                free(buffer);
-            }
-            free(header);
-            */
         }
         else
         {
             pthread_mutex_unlock(&client->opt_lock);
             Log("recv data< 0 errno:%d£¬error msg: '%s'\n", errno, strerror(errno));
             removeClient(client);
-            //close_socket(sockfd,g_clients,clientx->clientId,&allset,epollfd);
             close_socket(client,&allset);
         }
 		pthread_mutex_unlock(&client->opt_lock);
-        //free(buf);
-        //returnRedis(redisID);
         return NULL;
     }
 

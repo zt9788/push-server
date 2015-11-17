@@ -4,6 +4,7 @@
 #include <stdio.h>
 #include "util.h"
 #include <sys/stat.h>
+#include "md5.h"
 #ifndef WIN32
 	#include <uuid/uuid.h>
 #endif 
@@ -250,6 +251,22 @@ void itoa_(int i,char*string)
         i%=power;
     }
     *string='\0';
+}
+struct MD5Context md5c;	
+char* createMd5(const char* str,char* bufx){
+	
+	unsigned char ss[16];
+	MD5Init( &md5c );
+//	char bufx[33]={'\0'};
+	char tmp[3]={'\0'};
+	MD5Update( &md5c, str, strlen(str) );
+	MD5Final( ss, &md5c );	
+	int i = 0;
+	for( i=0; i<16; i++ ){
+		sprintf(tmp,"%02X", ss[i] );
+		strcat(bufx,tmp);
+	}
+	return bufx;
 }
 /*
 int main(int argc,char * argv[]) {

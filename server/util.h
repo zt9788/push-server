@@ -20,5 +20,5 @@ void* readtofile(const char* filePath,const char* fileName,int* ret);
 unsigned long get_file_size(const char *path);
 void itoa_(int i,char*string);
 char* createfullpath(const char* filePath,const char* fileName,char* fullpath);
-
+extern char* createMd5(const char* str,char* retStr);
 #endif /* !UNTIL_H */
