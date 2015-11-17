@@ -19,5 +19,6 @@ int writetofile(const char* filePath,const char* fileName,void* content,int len)
 void* readtofile(const char* filePath,const char* fileName,int* ret);
 unsigned long get_file_size(const char *path);
 void itoa_(int i,char*string);
+char* createfullpath(const char* filePath,const char* fileName,char* fullpath);
 
 #endif /* !UNTIL_H */

@@ -129,7 +129,21 @@ char* getFileName(char* fullpath){
     }
     return fullpath; 
 }
-
+char* createfullpath(const char* filePath,const char* fileName,char* fullpath){
+	//char fullpath[500]= {0};
+    int length = strlen(filePath);
+    if(length != 0 && filePath != NULL && filePath[0] != 0){    	
+	    if(filePath[length] == '\\' || filePath[length] == '/'){
+	    	sprintf(fullpath,"%s%s%s",fullpath,filePath,fileName);
+	    }else{
+			sprintf(fullpath,"%s%s/%s",fullpath,filePath,fileName);
+	    }
+	}
+	else{
+		sprintf(fullpath,"%s",fileName);
+	}
+	return fullpath;
+}
 int writetofile(const char* filePath,const char* fileName,void* content,int len)
 {
     char fullpath[500]= {0};

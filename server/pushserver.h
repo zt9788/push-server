@@ -48,22 +48,26 @@ SOFTWARE.
 #endif
 #include "sc.h"
 #include "redis_pool.h"
-#include "messagestorage.h"
+#include "parse_command.h"
+
 #ifdef CHECKMEM
 #include "leak_detector_c.h"
 #endif 
-
+#include "messagestorage.h"
 #define TRUE 1
 #define FALSE 0
 #ifndef BYTE
-typedef  unsigned char BYTE;
+//typedef unsigned char BYTE;
 #endif
 
-typedef struct server_config_to_client{
-	BYTE isOpenMessageResponse;
-	BYTE isOpenFileSocket;
-	BYTE isOpenPingResponse;	
-}server_config_to_client_t;
+
+
+typedef struct thread_struct{
+    int sockfd;
+    pthread_mutex_t lock;
+    int isexit;
+    char token[255];
+}thread_struct;
 
 typedef struct pushstruct
 {
@@ -75,20 +79,13 @@ typedef struct pushstruct
 } pushstruct;
 
 
-typedef struct send_info{
-	CLIENT* client;
-	push_message_info_t* info;	
-}send_info_t;
-
 void send_OK(int sockfd,int type);
 int new_connection(int slisten,struct sockaddr_in* addr,CLIENT* client,fd_set* allset,int* maxfd,int epollfd);
 int recvMessage(int sockfd,redisContext* redis,CLIENT_HEADER *header,void* buffer,CLIENT* client);
 void close_socket(CLIENT* client,fd_set* allset);
-
 void send_helo(int sockfd,CLIENT_HEADER	*header,CLIENT* client,char* token);
-
 void* send_helo_to_client_message(CLIENT* client);
-int send_pushlist_message(push_message_info_t* messageinfo,CLIENT* client);
+//int send_pushlist_message(push_message_info_t* messageinfo,CLIENT* client);
 void* sendMessage(void* sendinfo);/*send_info_t*/
 
 #endif /* !PUSHSERVER_H */

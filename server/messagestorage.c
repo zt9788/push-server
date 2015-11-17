@@ -195,6 +195,92 @@ void freeClientInfo(client_info_t* clientinfo){
 		free(clientinfo);
 	clientinfo = NULL;
 }
+push_message_info_t* putmessageinfo2(char* message,
+									char* tochar,
+									char* fileName,
+									char* newFilename,
+									int timeout,
+									char* from,
+									char* fromip,
+									int messagetype,
+									int priority,
+									push_message_info_t** info_in){
+	int redisId=0;    
+    redisContext* redis = getRedis(&redisId);
+    redisReply* reply = NULL;
+	char guid[64]={0};
+	createGUID(guid);
+    char time[255];
+    formattime(time,NULL);       
+    push_message_info_t* info = *info_in;
+    if(info == NULL)
+		info = malloc(sizeof(push_message_info_t));
+    strcpy(info->messageid,guid);
+    client_info_t* clientinfo = NULL;
+    getClientInfo(&clientinfo,tochar); 
+    if(clientinfo != NULL){
+    	if(priority == 0){
+	    	redisAppendCommand(redis,"lpush pushlist%d %s",clientinfo->serverid,guid);//1	
+    	}
+    	else{
+    		//TODO Need to improve the delay algorithm
+    		long t = delytime((priority*10)*60);
+   			redisAppendCommand(redis,"zadd dely_pushlist_set %d %s",t,guid);//1		
+	    }    	
+    }
+    else{
+    	redisAppendCommand(redis,"lpush %s_noread %s",tochar,guid);//1    
+    }	         	
+    redisAppendCommand(redis,"hset %s from %s",guid,from);//2
+    strcpy(info->form,from);
+    redisAppendCommand(redis,"hset %s to %s",guid,tochar);//3
+    strcpy(info->to,tochar);   
+    redisAppendCommand(redis,"hset %s fromip %s",guid,fromip);//4
+    strcpy(info->fromip,fromip);
+    redisAppendCommand(redis,"hset %s state %d",guid,0);//5
+    info->state = 0;
+    
+    if(messagetype == MESSAGE_TYPE_TXT)
+    {
+        redisAppendCommand(redis,"hset %s content %s",guid,message);//6
+        info->content = malloc(strlen(message)+1);
+        memset(info->content,0,strlen(message)+1);
+		memcpy(info->content,message,strlen(message));
+    }
+    else
+    {        
+        redisAppendCommand(redis,"hset %s orgFileName %s",guid,fileName);//6
+		strcpy(info->orgFileName,fileName);
+        redisAppendCommand(redis,"hset %s content %s",guid,newFilename);//12
+        info->content = malloc(strlen(newFilename)+1);
+        memset(info->content,0,strlen(message)+1);
+		memcpy(info->content,newFilename,strlen(newFilename));
+    }
+    redisAppendCommand(redis,"hset %s sendtime %s",guid,time);//7
+    strcpy(info->sendtime,time);
+    redisAppendCommand(redis,"hset %s retrycount %d",guid,0);//8
+    info->retrycount = 0;
+    redisAppendCommand(redis,"hset %s messagetype %d",guid,messagetype);//9
+    info->messagetype = messagetype;
+    redisAppendCommand(redis,"hset %s messageid %s",guid,guid);//10
+    strcpy(info->messageid,guid);
+    redisAppendCommand(redis,"EXPIRE %s %d",guid,timeout);//11
+    info->timeout = timeout;
+    int x=0;				
+	for(x=0;x<11;x++){
+		redisGetReply(redis,(void**)&reply);
+        freeReplyObject(reply);//1	
+	} 
+    if(messagetype != MESSAGE_TYPE_TXT)
+    {
+        redisGetReply(redis,(void**)&reply);
+        freeReplyObject(reply);//11
+    }
+	freeClientInfo(clientinfo);
+	returnRedis(redisId);		
+	*info_in = info;						
+	return info;									
+}
 push_message_info_t* putmessageinfo(char* message,
 									char* tochar,
 									char* fileName,

@@ -21,6 +21,8 @@ SOFTWARE.
 ******************************************************************************/
 
 #include "pushserver.h"
+#include "sc.h"
+#include "messagestorage.h"
 #include "log.h"
 #include "md5.h"
 //#include "uuid32.h"

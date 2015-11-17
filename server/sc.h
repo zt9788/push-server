@@ -21,7 +21,10 @@ SOFTWARE.
 ******************************************************************************/
 #ifndef SC_H
 #define SC_H
+#include <netinet/in.h>
+
 //message content type
+/*
 #define MESSAGE_TYPE_TXT  0xF11
 #define MESSAGE_TYPE_IMG  0xF22
 #define MESSAGE_TYPE_AUDIO  0xF22
@@ -31,6 +34,16 @@ SOFTWARE.
 #define MESSAGE_TYPE_LONG_MESSAGE 0xF30
 #define MESSAGE_TYPE_GET_MESSAGE_LIST 0xF31
 #define MESSAGE_TYPE_GET_MESSAGE 0xF41
+*/
+#define MESSAGE_TYPE_TXT  0xF1
+#define MESSAGE_TYPE_IMG  0xF2
+#define MESSAGE_TYPE_AUDIO  0xF3
+#define MESSAGE_TYPE_VIDEO  0xF4
+#define MESSAGE_TYPE_FILE  0xF5
+
+#define MESSAGE_TYPE_LONG_MESSAGE 0xF6
+#define MESSAGE_TYPE_GET_MESSAGE_LIST 0xF7
+#define MESSAGE_TYPE_GET_MESSAGE 0xF8
 
 //message type
 #define MESSAGE_HELO 0xA0
@@ -39,6 +52,14 @@ SOFTWARE.
 #define MESSAGE_SERVER 0xA3
 #define MESSAGE_BYE 0xA4
 #define MESSAGE_YES 0xA5
+
+#define COMMAND_HELO 		0xA0
+#define COMMAND_PING 		0xA1
+#define COMMAND_MESSAGE 	0xA2
+#define COMMAND_SERVER 		0xA3
+#define COMMAND_BYE 		0xA4
+#define COMMAND_YES 		0xA5
+
 #ifdef S_OK
 	#undef S_OK
 #endif
@@ -54,6 +75,18 @@ SOFTWARE.
 #define PROTOCOL_SSL_WEBSOCKET  0x1B
 #define PROTOCOL_XMPP      		0x0C
 #define PROTOCOL_OHTER 			0x0D//
+
+
+//clienttype
+
+#define CLIENT_TYPE_IOS 0x1A
+#define CLIENT_TYPE_ANDROID 0x2A
+#define CLIENT_TYPE_PC 0x3A
+#define CLIENT_TYPE_WEB 0x4A
+
+#ifndef BYTE
+typedef  unsigned char BYTE;
+#endif
 /***********************************************
 
      byte      byte         byte                           =====> all header ,ping,or others   < 4096    
@@ -65,59 +98,58 @@ SOFTWARE.
 1)  byte[2]    char[~64]    byte[2]          bytes         =====> in helo command   < 4096   
 1) idlength   messageid    contentlength    content     
 
-2)  byte[2]    char[~64]  byte[2]  char[255]   byte[2]         bytes         =====> in helo command   < 4096   
+2)  byte[2]    char[~64]  byte[2]  char[255]   long         bytes         =====> in helo command   < 4096   
 2) idlength   messageid   fnlength filename  contentlength    content     
 
 ********************************************/
+
 typedef struct server_header_2{
-	unsigned char command;//command S_R_OK, S_R_FIlED
-	short serverid;
+	unsigned char command;//command 	
 	unsigned char messagetype;//
+	short serverid;
+	int total;
 }server_header_2_t;
 
 
 /***********************************************
 
-     byte      byte         byte                         =====> all header ,ping,or others   < 4096    
+     byte      byte         byte                         			=====> all header ,ping,or others   < 4096    
    command   clienttype  messagetype  
    
-0)   byte[2]        char[~64]                            =====> in helo command   < 4096   
-0) drivceidlength  drivceid    
+0)   byte[2]        char[~64]    byte[2]        char[~64]           =====> in helo command   < 4096   
+0) drivceidlength  drivceid     iostoenlength   iostoken
    
-1)   short       byte[2]     byte[][2]   char[][~64]     =====> in message command  < 4096   
+1)   short       byte[2]     byte[][2]   char[][~64]     			=====> in message command  < 4096   
 1)  delytime  sendtocount     tolength       to  
 
-2)  byte[2]         bytes                                =====> in text message  < 4096
+2)  byte[2]         bytes                                			=====> in text message  < 4096
 2) contentlength   content
 
-3)  byte[2]         bytes      long         bytes        =====> in file message
+3)  byte[2]         bytes      long         bytes        			=====> in file message
 3) filenamelength  filename	contentlength  content	
 
-4)  long         bytes                                   =====> in long message
+4)  long         bytes                                   			=====> in long message
 4) length      content
 
-5)  byte[2]      bytes                                   =====> in get message by messageid
+5)  byte[2]      bytes                                   			=====> in get message by messageid
 5) idlength    messageid
 
-6)  byte[2]       byte[2]                                =====> in get message list(sort count)
+6)  byte[2]       byte[2]                                			=====> in get message list(sort count)
 6) message-star  message-end
 ********************************************/
 typedef struct client_header_2{
 	unsigned char command;//command
 	unsigned char clienttype;
 	unsigned char messagetype;//
+	int total;
 }client_header_2_t;
 
-typedef struct CLIENT {
-    int fd;
-    int clientId;
-    int serverid;
-	char drivceId[64];	
-	int protocol;
-	int clienttype;/*0=android,1=ios,2=web*/
-    struct sockaddr_in addr;
-    pthread_mutex_t opt_lock;
-}CLIENT;
+
+typedef struct server_config_to_client{
+	BYTE isOpenMessageResponse;
+	BYTE isOpenFileSocket;
+	BYTE isOpenPingResponse;	
+}server_config_to_client_t;
 
 typedef struct CLIENT_HEADER{
     int type;
@@ -150,14 +182,17 @@ typedef struct SERVER_HEADER{
 }SERVER_HEADER;
 
 
+typedef struct CLIENT {
+    int fd;
+    int clientId;
+    int serverid;
+	char drivceId[64];	
+	int protocol;
+	int clienttype;/*0=android,1=ios,2=web*/
+    struct sockaddr_in addr;
+    pthread_mutex_t opt_lock;
+}CLIENT;
 
-
-typedef struct thread_struct{
-    int sockfd;
-    pthread_mutex_t lock;
-    int isexit;
-    char token[255];
-}thread_struct;
 
 
 #define MAX_CONNECTION_LENGTH 102400

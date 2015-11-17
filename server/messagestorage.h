@@ -23,6 +23,8 @@ SOFTWARE.
 #ifndef MESSAGE_STROE_H
 #define MESSAGE_STROE_H
 
+//#include "pushserver.h"
+
 typedef struct push_message_info{	
 	int retrycount;
 	int state;
@@ -52,22 +54,31 @@ typedef struct client_info{
 	char* errStr;
 }client_info_t;
 
+typedef struct send_info{
+	CLIENT* client;
+	push_message_info_t* info;	
+}send_info_t;
+
 typedef struct user_friends{
 	int isOnline;
 	char userid[64];
 	char drivceId[64];
 	struct user_friends* next;
 }user_friends_t;
+
+
+
 void print_push_info(push_message_info_t* info);
 void print_client_info(client_info_t* info);
-client_info_t* putclientinfo(CLIENT* client,
+
+client_info_t* putclientinfo(struct CLIENT* client,
 					int serverid,
 					char* serverip,
 					char* drivceId,
 					int clienttype,
 					client_info_t** info);
 					
-client_info_t* newClient(CLIENT* client,
+client_info_t* newClient(struct CLIENT* client,
  					int serverid,
 					char* serverip,
 					char* drivceId,
@@ -82,16 +93,25 @@ push_message_info_t* putmessageinfo(char* message,
 									char* newFilename,
 									int timeout,
 									CLIENT_HEADER* header,
-									CLIENT* client,
+									struct CLIENT* client,
 									int priority,
 									push_message_info_t** info);
-									
+push_message_info_t* putmessageinfo2(char* message,
+									char* tochar,
+									char* fileName,
+									char* newFilename,
+									int timeout,
+									char* from,
+									char* fromip,
+									int messagetype,
+									int priority,
+									push_message_info_t** info_in);									
 push_message_info_t* getmessageinfo(char* pushid,push_message_info_t** info);
 void freePushMessage(push_message_info_t* messageinfo);
 void freeClientInfo(client_info_t* clientinfo);
 int isClientOnline(char* drivceId);
 int isHasMessageInfo(char* messageid);		
-void removeClient(CLIENT* client);	
+void removeClient(struct CLIENT* client);	
 int getNextNoReadMessageId(char* drivceId,char* messageid);
 int getNoReadMessageSize(char* drivceId);
 int getNextMessageId(int serverid,char* messageid);		
