@@ -192,6 +192,7 @@ typedef struct CLIENT {
 	char token[64];//ios token
 	int protocol;
 	int clienttype;/*0=android,1=ios,2=web*/
+	long timeout;//socket time out,when have data need update time
     struct sockaddr_in addr;
     pthread_mutex_t opt_lock;
 }CLIENT;

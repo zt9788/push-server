@@ -88,8 +88,6 @@ pthread_t* coretthreadsId;
 int active_socket_connect = 0;
 int g_maxi = -1;
 static int g_epollfd;
-fd_set rset,allset;
-
 
 void* read_thread_function(void* client_t);
 void* unionPushList(void* st);
@@ -104,6 +102,24 @@ static void myhandler(char* name,sem_t* semt)
     sem_close(semt);
 }
 */
+
+void* check_time_out_thread(void* args){
+	int i = 0;
+	while(1){
+		time_t t;
+		time(&t);
+		for(i=0;i<g_maxi;i++){
+			if(g_clients[i].fd < 0)
+				continue;
+			if((t-g_clients[i].timeout) == system_config.socket_time_out){
+				pthread_mutex_unlock(&g_clients[i].opt_lock);
+				removeClient(&g_clients[i]);
+				close_socket(&g_clients[i]);
+			}
+		}
+		sleep(1);
+	}
+}
 int addepollevent(int fd,void* ptr)
 {
 #ifdef __EPOLL__
@@ -122,28 +138,6 @@ int addepollevent(int fd,void* ptr)
     return 0;
 }
 
-int mksock(int type)
-{
-    int sock;
-    struct sockaddr_in  my_addr;
-    if((sock = socket(AF_INET,type,0)) == -1)
-    {
-        perror("socket");
-        exit(1);
-    }
-
-    //bzero(&my_addr,sizeof(my_addr));
-    memset(&my_addr,0,sizeof(my_addr));
-    my_addr.sin_family = AF_INET;
-    my_addr.sin_port = htons(system_config.server_port);
-    my_addr.sin_addr.s_addr = INADDR_ANY;
-
-    //close socket just now
-    unsigned int value = 0x1;
-    setsockopt(sock,SOL_SOCKET,SO_REUSEADDR,(void *)&value,sizeof(value));
-    return sock;
-
-}
 
 /***************************
 **server for multi-client
@@ -177,7 +171,7 @@ int main(int argc, char** argv)
         init_daemon(argv[1]);
     }
 
-    slisten = mksock(SOCK_STREAM);
+    slisten = mksock(SOCK_STREAM,system_config.server_port);
     memset(&my_addr,0,sizeof(my_addr));
     my_addr.sin_family = AF_INET;
     my_addr.sin_port = htons(system_config.server_port);
@@ -207,8 +201,6 @@ int main(int argc, char** argv)
     }
     pthread_mutex_unlock(&client_lock);
 
-    FD_ZERO(&allset);
-    FD_SET(slisten, &allset);
     maxfd = slisten;
 
     Log("Waiting for connections and data...\n");
@@ -345,13 +337,13 @@ int main(int argc, char** argv)
                     removeClient(clientx);//TODO here some time client is not have drivceid may make a mistake
                     Log("eventList error£¡errno:%d£¬error msg: '%s'\n", errno, strerror(errno));
                     //epoll_ctl(epollfd,  EPOLL_CTL_DEL, sockfd, NULL);
-                    close_socket(clientx,&allset);
+                    close_socket(clientx);
 //					return -1;
                     continue;
                 }
                 else  if (eventList[n].data.fd == slisten)
                 {
-                    int ret = new_connection(slisten,g_clients,&allset,&maxfd,epollfd);
+                    int ret = new_connection(slisten,g_clients,&maxfd,epollfd);
                     if(ret != 1)
                         continue;
                 }
@@ -499,7 +491,7 @@ void send_helo(int sockfd,CLIENT_HEADER	*header,CLIENT* client,char* deviceid)
 }
 */
 
-void close_socket(CLIENT* client,fd_set* allset)
+void close_socket(CLIENT* client)
 {
     if(active_socket_connect<1)
         return;
@@ -532,11 +524,7 @@ void close_socket(CLIENT* client,fd_set* allset)
         client->fd = -1;
         pthread_mutex_unlock(&client_lock);
     }
-
     close(sockfd);
-    FD_CLR(sockfd,allset);
-
-
 }
 /*****************************
  *
@@ -581,7 +569,7 @@ void send_OK(int sockfd,int type)
     free(sheader);
 }
 int new_connection(int slisten,//struct sockaddr_in* addr,
-                   CLIENT* client,fd_set* allset,
+                   CLIENT* client,
                    int* maxfd,int epollfd)
 {
     socklen_t len;
@@ -732,7 +720,7 @@ void* read_thread_function(void* client_t)
 recv_error_close_client:
             pthread_mutex_unlock(&client->opt_lock);
             removeClient(client);
-            close_socket(client,&allset);
+            close_socket(client);
             return NULL;
         }
     }
@@ -741,7 +729,7 @@ recv_error_close_client:
         pthread_mutex_unlock(&client->opt_lock);
         Log("recv data< 0 errno:%d£¬error msg: '%s'\n", errno, strerror(errno));
         removeClient(client);
-        close_socket(client,&allset);
+        close_socket(client);
     }
     pthread_mutex_unlock(&client->opt_lock);
     return NULL;
@@ -828,7 +816,9 @@ int send_pushlist_message(
     push_message_info_t* messageinfo,
     CLIENT* client)
 {
-    int ret = 0;
+	int ret = 0;
+	createServerMessagereply(system_config.serverid,messageinfo,system_config.tempPath);
+	/*    
     int sendlen = sizeof(SERVER_HEADER);//+content!=NULL?strlen(content):0;
     SERVER_HEADER* sheader = malloc(sizeof(SERVER_HEADER));
     sheader->messageCode = MESSAGE_SUCCESS;
@@ -912,9 +902,12 @@ send_error:
         close_socket(client,&allset);
         return 0;
     }
+    */
     //wait for client return
+    
     char tempbuf[MAXBUF];
-    len = recv(client->fd, tempbuf, MAXBUF, 0);
+    int len = recv(client->fd, tempbuf, MAXBUF, 0);
+    /*
     if(len>0)
     {
         CLIENT_HEADER* cheader = malloc(sizeof(CLIENT_HEADER));
@@ -929,6 +922,20 @@ send_error:
         free(cheader);
     }
     else
+    {
+        ret = 0;
+        return ret;
+    }
+    */
+    if(len>0)
+    {
+	    client_header_2_t cheader;
+	    parseClientHeader(tempbuf,&cheader);
+	    if(cheader.command == COMMAND_YES){
+	    	messageIsSendOK2( messageinfo,system_config.serverid);
+	    }
+    }
+	else
     {
         ret = 0;
         return ret;

@@ -38,7 +38,7 @@ typedef struct config_struct
 	char deamon[20];
 	int redis_port;
 	char tempPath[500];
-#
+	int socket_time_out;//default 120
 }config_struct;
 
 void init_daemon(char* cmd);

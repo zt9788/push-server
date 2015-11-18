@@ -81,9 +81,9 @@ typedef struct pushstruct
 
 void send_OK(int sockfd,int type);
 int new_connection(int slisten,//struct sockaddr_in* addr,
-			CLIENT* client,fd_set* allset,int* maxfd,int epollfd);
+			CLIENT* client,int* maxfd,int epollfd);
 int recvMessage(int sockfd,CLIENT_HEADER *header,void* buffer,CLIENT* client);
-void close_socket(CLIENT* client,fd_set* allset);
+void close_socket(CLIENT* client);
 void send_helo(int sockfd,CLIENT_HEADER	*header,CLIENT* client,char* token);
 void* send_helo_to_client_message(CLIENT* client);
 //int send_pushlist_message(push_message_info_t* messageinfo,CLIENT* client);

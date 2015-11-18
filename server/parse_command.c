@@ -187,6 +187,7 @@ int parseClientMessage(int sockfd,void* bufs,client_header_2_t* header,char* dri
 	free(sendto);
 	if(contentOrFileName)
 		free(contentOrFileName);
+	
 	return 0;
 }
 void* createClientPing(unsigned	char clienttype	){
