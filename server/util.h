@@ -13,6 +13,7 @@ char* formattime(char* buffer,char* format);
 char* createGUID(char* uid);
 int split(char** dst, char* str, const char* spl);
 int splitcount(char** dst, char* str, const char* spl);
+int splitcountx(char* str, const char* spl);
 
 void dump_data(void* buf,int len);
 int writetofile(const char* filePath,const char* fileName,void* content,int len);

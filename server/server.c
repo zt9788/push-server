@@ -39,6 +39,7 @@ SOFTWARE.
 #ifdef CHECKMEM
 #include "leak_detector_c.h"
 #endif
+#include "socket_plush.h"
 
 #ifdef DEBUG
 //#undef Log
@@ -159,7 +160,7 @@ int main(int argc, char** argv)
 
     //unsigned int lisnum;
 
-    struct sockaddr_in  my_addr,addr;
+    struct sockaddr_in  my_addr;//,addr;
     struct timeval tv;
 
     char buf[MAXBUF + 1];
@@ -177,8 +178,6 @@ int main(int argc, char** argv)
     }
 
     slisten = mksock(SOCK_STREAM);
-
-//    bzero(&my_addr,sizeof(my_addr));
     memset(&my_addr,0,sizeof(my_addr));
     my_addr.sin_family = AF_INET;
     my_addr.sin_port = htons(system_config.server_port);
@@ -195,6 +194,7 @@ int main(int argc, char** argv)
         perror("listen");
         exit(1);
     }
+    setnonblocking(slisten);
     pthread_mutex_lock(&client_lock);
 #ifndef __EPOLL__
     for(i=0; i<FD_SETSIZE; i++)
@@ -363,7 +363,7 @@ int main(int argc, char** argv)
                 else  if (eventList[n].data.fd == slisten)
                 {
 
-                    int ret = new_connection(slisten,&addr,g_clients,&allset,&maxfd,epollfd);
+                    int ret = new_connection(slisten,g_clients,&allset,&maxfd,epollfd);
                     if(ret != 1)
                         continue;
                 }
@@ -403,7 +403,7 @@ int main(int argc, char** argv)
 #ifndef __EPOLL__
                 if(FD_ISSET(slisten,&rset)) // new connection
                 {
-                    int ret = new_connection(slisten,&addr,g_clients,&allset,&maxfd,0);
+                    int ret = new_connection(slisten,g_clients,&allset,&maxfd,0);
                     if(ret != 1)
                         continue;
                     //int new_connection(int slisten,struct sockaddr_in* addr,CLIENT* client){
@@ -793,18 +793,23 @@ int main(int argc, char** argv)
 
         free(sheader);
     }
-    int new_connection(int slisten,struct sockaddr_in* addr,CLIENT* client,fd_set* allset,int* maxfd,int epollfd)
+    int new_connection(int slisten,//struct sockaddr_in* addr,
+				CLIENT* client,fd_set* allset,
+				int* maxfd,int epollfd)
     {
         socklen_t len;
         //fd_set rset,allset;
+        struct sockaddr_in addr;
+        memset(&addr,0,sizeof(struct sockaddr_in));
         len = sizeof(struct sockaddr);
         int connectfd;
         if((connectfd = accept(slisten,
-                               (struct sockaddr*)addr,&len)) == -1)
+                               (struct sockaddr*)&addr,&len)) == -1)
         {
             perror("accept() error\n");
             return 0;
         }
+        setnonblocking(connectfd);
         struct timeval timeout =
         {
             1,0
@@ -823,7 +828,7 @@ int main(int argc, char** argv)
             {
                 client[i].fd = connectfd;
                 //client[i].clientid=autoclientid;
-                client[i].addr = *addr;
+                client[i].addr = addr;
                 pthread_mutex_init(&client[i].opt_lock , NULL);
                 Log("Yout got a connection from %s.\n",
                     inet_ntoa(client[i].addr.sin_addr));
@@ -882,30 +887,44 @@ int main(int argc, char** argv)
             {
                 //TODO it is may xmpp
             }
-            
+            dump_data(buf,n);
             client_header_2_t header;
             memset(&header,0,sizeof(client_header_2_t));            
-            char* bufs = parseClientHeader((void*)buf,&header);
-            if(bufs == NULL)
-            	goto recv_error_close_client;
+            void* bufs = parseClientHeader((void*)buf,&header);
+            //if(header == NULL)
+            //	goto recv_error_close_client;
             n -= sizeof(client_header_2_t);
             if(header.command == COMMAND_PING){
 				server_header_2_t* sheader = createServerPing(system_config.serverid);
 				int ret = send(sockfd,sheader,sizeof(server_header_2_t),0);
+				free(sheader);
 				if(ret <= 0)
 					goto recv_error_close_client;
             }
             else if(header.command == COMMAND_HELO){        	
-            	int ret = parseClientHelo(buf,client->drivceId,client->token,header.messagetype);
-            	//send_helo() TODO
+            	int ret = parseClientHelo(bufs,client->drivceId,client->token,header.messagetype);
+				struct sockaddr_in addr;
+		        socklen_t slen;
+		        getsockname(sockfd,(struct sockaddr*)&addr,&slen);		        
+		        client_info_t* clientinfo = NULL;
+		        newClient(client,system_config.serverid,inet_ntoa(addr.sin_addr),
+                  			client->drivceId,
+                  			1, /* TODO is need get from client header from client */
+                  			&clientinfo);
+				
             	if(ret < 1)
             		goto recv_error_close_client;
+				void* sheader = createServerHelo(system_config.serverid,0,0,0);								
+				ret = send(sockfd,sheader,sizeof(server_header_2_t),0);
+				free(sheader);
+				if(ret <= 0)
+					goto recv_error_close_client;
             }
             else if(header.command == COMMAND_BYE){
             	goto recv_error_close_client;
             }
             else if(header.command == COMMAND_MESSAGE){
-            	int ret = parseClientMessage(sockfd,buf,&header,client->drivceId,client->token,n,
+            	int ret = parseClientMessage(sockfd,bufs,&header,client->drivceId,client->token,n,
 							inet_ntoa(client->addr.sin_addr),system_config.tempPath);
 				if(ret < 0)
 					goto recv_error_close_client;

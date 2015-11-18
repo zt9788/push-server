@@ -13,8 +13,9 @@
 #include <pthread.h>
 #include "log.h"
 #include "sc.h"
+#include "parse_command.h"
 
-#define MAXBUF 1024
+//#define MAXBUF 1024
 #define WIN32
 
 
@@ -30,7 +31,8 @@
 #else
 #define DUMP_DT(buf,len) dump_data(buf,len)
 #endif
-
+#define __DEBUG(format, ...) printf("FILE: "__FILE__", LINE: %d: "format"/n", __LINE__, ##__VA_ARGS__)
+/*
 int splitcount(char* str, const char* spl)
 {
     int n = 0;
@@ -61,9 +63,33 @@ int split(char** dst, char* str, const char* spl)
     }
     return n;
 }
-
+*/
+typedef struct pushstruct
+{
+//	redisContext* redis;
+//	int sockid;
+	CLIENT* client;
+	pthread_mutex_t lock;
+	int isexit;
+//	char redisip[20];
+//	int redisport;
+	int timeout;
+	//struct sockaddr_in addr;
+} pushstruct;
+typedef struct thread_struct{
+    int sockfd;
+    pthread_mutex_t lock;
+    int isexit;
+    char token[255];
+}thread_struct;
 void sendhelo(int sockfd,char* token)
 {
+	void* buff = NULL;
+	int length = createClientHelo(&buff,1,token,NULL);
+	printf("helo\n");
+	dump_data(buff,length);
+	int len = send(sockfd, buff, length, 0);
+	/*
     CLIENT_HEADER* header = malloc(sizeof(CLIENT_HEADER)+strlen(token));
     header->contentLength = 0;
     //header->tokenLength = strlen(token);
@@ -79,7 +105,7 @@ void sendhelo(int sockfd,char* token)
     int len = send(sockfd, buff, length, 0);
     printf("send helo data:\n");
     DUMP_DT(buff,len);
-    free(header);
+    free(header);*/
     free(buff);
     if (len > 0)
     {
@@ -89,10 +115,16 @@ void sendhelo(int sockfd,char* token)
     {
         printf("msg:'%s  failed!\n", buff);
     }
+	
 
 }
 void sendping(int sockfd,char* token)
 {
+	void* buff = createClientPing(1);
+	int len = send(sockfd, buff, sizeof(client_header_2_t), 0);
+	printf("ping\n");
+	dump_data(buff,len);
+	/*
     CLIENT_HEADER* header = malloc(sizeof(CLIENT_HEADER));
     header->contentLength = 0;
     //header->tokenLength = strlen(token);
@@ -107,7 +139,7 @@ void sendping(int sockfd,char* token)
     int len = send(sockfd, buff, length, 0);
     printf("send ping data send len=%d,size=%d:\n",len,sizeof(CLIENT_HEADER));
     DUMP_DT(buff,len);
-    free(header);
+    free(header);*/
     free(buff);
     if (len > 0)
         Log("msg:%s send successful，totalbytes: %d！\n", buff, len);
@@ -115,6 +147,7 @@ void sendping(int sockfd,char* token)
     {
         printf("msg:'%s  failed!\n", buff);
     }
+    
 
 }
 /**
@@ -126,7 +159,7 @@ void thread(thread_struct* thread_s)
     {
         sendping(thread_s->sockfd,thread_s->token);
         int i = 0;
-        for(i = 0; i<30; i++)
+        for(i = 0; i<100; i++)
         {
             if(thread_s->isexit == 0)
                 sleep(1);
@@ -164,7 +197,7 @@ void* client_thread(char **argv)
         strcpy(token,argv[3]);
         char* tempArgv = malloc(strlen(argv[4]));
         strcpy(tempArgv,argv[4]);
-        int totokenLength = splitcount(argv[4],"_");
+        int totokenLength = splitcountx(argv[4],"_");
         char** totoken_temp = NULL;
         totoken_temp = malloc(totokenLength);
         int i =0;
@@ -381,11 +414,14 @@ void* client_thread(char **argv)
                     bzero(buf, MAXBUF + 1);
                     len = recv(sockfd, buf, MAXBUF, 0);
                     //printf("recv data recv len:%d,SERVER_HEADER len:%d\n",len,sizeof(SERVER_HEADER));
-                    //DUMP_DT(buf,len);
-                    SERVER_HEADER* header = malloc(sizeof(SERVER_HEADER));
-                    bzero(header,sizeof(SERVER_HEADER));
+                    printf("recv:\n");
+                    dump_data(buf,len);
+                    
+                    //SERVER_HEADER* header = malloc(sizeof(SERVER_HEADER));
+                    //bzero(header,sizeof(SERVER_HEADER));
                     if (len > 0)
                     {
+						/*
                         if(len>=sizeof(SERVER_HEADER))
                         {
                             memcpy(header,buf,sizeof(SERVER_HEADER));
@@ -428,6 +464,7 @@ void* client_thread(char **argv)
                                 }
                             }
                         }
+                        */
                         Log("recv:'%s, total: %d,%d \n", buf, len,header->messageCode);
                     }
                     else
@@ -441,11 +478,11 @@ void* client_thread(char **argv)
                         }
 
 
-                        free(header);
+                      //  free(header);
                         break;
                         //continue;
                     }
-                    free(header);
+                   // free(header);
                 }
             }
         }
@@ -470,7 +507,7 @@ int main(int argc, char **argv){
         strcpy(token,argv[3]);
         char* tempArgv = malloc(strlen(argv[4]));
         strcpy(tempArgv,argv[4]);
-        int totokenLength = splitcount(argv[4],"_");
+        int totokenLength = splitcountx(argv[4],"_");
         char** totoken_temp = NULL;
         totoken_temp = malloc(totokenLength);
         int i =0;
@@ -512,7 +549,13 @@ int main(int argc, char **argv){
             sscanf(buf,"%*s%s",filepath);
             printf("%s\n",filepath);
             isfile = 1;
-        }   	
+        }   
+		int len = -1;	
+        if(isfile == 0)
+  			len = createClientMessage(g_sock,MESSAGE_TYPE_TXT,1,0,buf,1,"kuer");
+        else
+       		len = createClientMessage(g_sock,MESSAGE_TYPE_FILE,1,0,buf,1,"kuer");
+        /*
         int length = -1;
         CLIENT_HEADER* header = malloc(sizeof(CLIENT_HEADER));
         header->contentLength = strlen(buf);
@@ -618,10 +661,11 @@ int main(int argc, char **argv){
         //DUMP_DT(buff,len);
         free(header);
         free(buff);
+        */
         if (len > 0)
         {
             Log("msg:%s send successful，totalbytes: %d,%d！\n", buf, len,length);
-            printf("msg:%s send successful，totalbytes: %d,%d！\n", buf, len,length);
+            //printf("msg:%s send successful，totalbytes: %d,%d！\n", buf, len,length);
         }
         else
         {
