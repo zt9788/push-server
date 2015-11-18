@@ -477,7 +477,7 @@ void* send_helo_to_client_message(CLIENT* client)
     }
     while(ret>0);
 }
-
+/*
 void send_helo(int sockfd,CLIENT_HEADER	*header,CLIENT* client,char* deviceid)
 {
     char time[255];
@@ -489,7 +489,7 @@ void send_helo(int sockfd,CLIENT_HEADER	*header,CLIENT* client,char* deviceid)
     client_info_t* clientinfo = NULL;
     newClient(client,system_config.serverid,inet_ntoa(addr.sin_addr),
               client->drivceId,
-              1, /* TODO is need get from client header from client */
+              1, 
               &clientinfo);
     freeClientInfo(clientinfo);
     /////////////////////////////////////////////////////////////////
@@ -497,6 +497,7 @@ void send_helo(int sockfd,CLIENT_HEADER	*header,CLIENT* client,char* deviceid)
 
     send_helo_to_client_message(client);
 }
+*/
 
 void close_socket(CLIENT* client,fd_set* allset)
 {
@@ -564,84 +565,6 @@ void close_socket(CLIENT* client,fd_set* allset)
  *
  *
  ***********************/
-int recvMessage(int sockfd,CLIENT_HEADER *header,void* buffer_header,CLIENT* client)
-{
-    char guid[32]= {0};
-    int sendto = header->sendto;
-    //int userid = header->userid;
-    char tochar[64] = {0};
-    char fileName[255]= {0};
-    char newFilename[500]= {0};
-    int fileNameLength = 255;
-    void* message = NULL;
-    void* buffer = buffer_header;
-    if(header->messagetype != MESSAGE_TYPE_TXT)
-    {
-        memcpy(fileName,buffer,fileNameLength);
-    }
-    message =  malloc(header->contentLength);
-    if(message == 0)
-    {
-        Log("the message is malloc error\n");
-        return 0;
-    }
-    memset(message,0,header->contentLength);
-    if(header->messagetype == MESSAGE_TYPE_TXT)
-    {
-        memcpy(message,buffer+sendto*64,header->contentLength);
-        char* tmpMessage = (char*)message;
-        tmpMessage[header->contentLength] = '\0';
-    }
-    else
-    {
-        memcpy(message,buffer+sendto*64+fileNameLength,header->contentLength);
-        char tempStr[500]= {0};
-        sprintf(tempStr,"%s",fileName);
-        sprintf(tempStr,"%s%s",tempStr,time);
-        createMd5(tempStr,newFilename);
-        //TODO save file and create new filename put in messageinfo
-        //TODO in future create another socket listen or http service to store file,the content will may new file path
-        // http://xxxxxxx,or /tmp/xxxxxx
-        writetofile(system_config.tempPath,newFilename,message,header->contentLength);
-    }
-    if(sendto > 0)
-    {
-        int j=0;
-        for(j=0; j<sendto; j++)
-        {
-            memset(tochar,0,64);
-            if(header->messagetype == MESSAGE_TYPE_TXT)
-                memcpy(tochar,buffer+j*64,64);
-            else
-                memcpy(tochar,buffer+j*64+fileNameLength,64);
-            push_message_info_t* info = NULL;
-            putmessageinfo(//guid,
-                message,tochar,fileName,newFilename,300,//
-                header,client,0,&info);
-            print_push_info(info);
-            freePushMessage(info);
-
-        }
-        Log("From %s ,Rect message:%s \n",inet_ntoa(client->addr.sin_addr),message);
-    }
-    else if(sendto == 0)
-    {
-        //globle message?
-    }
-    else
-    {
-        //error
-    }
-
-    //Log("received data:%s\n from %s \n",message,inet_ntoa(client->addr.sin_addr));
-//        Log("received data:--from %s:%s\n",inet_ntoa(client->addr.sin_addr),client->drivceId);
-    if(message != 0)
-    {
-        free(message);
-    }
-    send_OK(sockfd,MESSAGE_YES);
-    return 1;
-}
 void send_OK(int sockfd,int type)
 {
     SERVER_HEADER* sheader = malloc(sizeof(SERVER_HEADER));
@@ -776,6 +699,8 @@ void* read_thread_function(void* client_t)
             free(sheader);
             if(ret <= 0)
                 goto recv_error_close_client;
+                
+            send_helo_to_client_message(client);
         }
         else if(header.command == COMMAND_BYE)
         {
