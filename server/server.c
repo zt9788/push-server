@@ -196,9 +196,7 @@ int main(int argc, char** argv)
     }
     setnonblocking(slisten);
     pthread_mutex_lock(&client_lock);
-#ifndef __EPOLL__
-    for(i=0; i<FD_SETSIZE; i++)
-#else
+#ifdef __EPOLL__
     for(i=0; i<MAX_CONNECTION_LENGTH; i++)
 #endif
     {
@@ -305,26 +303,20 @@ int main(int argc, char** argv)
 
     while (g_isExit == 0 && g_isRestart == 0)//sig = xxx wait for sig
     {
-        rset = allset;
         if(pid == main_pid)
         {
-            FD_SET(0, &rset);
+            
         }
-
         pthread_mutex_lock(&client_lock);
-#ifdef __EPOLL__
         int timeout = 5;
+#ifdef __EPOLL__
+        
         nready = epoll_wait(epollfd, eventList, MAX_EVENTS, timeout);
-#else
-        tv.tv_sec = 1;
-        tv.tv_usec = 0;
-        nready = select(maxfd + 1, &rset, NULL, NULL, &tv);
 #endif
         pthread_mutex_unlock(&client_lock);
         int isQuit = 0;
         if(nready == 0)
         {
-            //printf("timeout ...\n");
             continue;
         }
         else if(nready < 0)
@@ -350,13 +342,10 @@ int main(int argc, char** argv)
                     //int sockfd = -1;
                     if((sockfd = clientx->fd)<0)
                         continue;
-                    //removeClientInfoFromRedis(redis,clientx);
                     removeClient(clientx);//TODO here some time client is not have drivceid may make a mistake
                     Log("eventList error£¡errno:%d£¬error msg: '%s'\n", errno, strerror(errno));
                     //epoll_ctl(epollfd,  EPOLL_CTL_DEL, sockfd, NULL);
-                    //close_socket(sockfd,g_clients,clientx->clientId,&allset,epollfd);
                     close_socket(clientx,&allset);
-                    //close (fd);
 //					return -1;
                     continue;
                 }
@@ -399,171 +388,47 @@ int main(int argc, char** argv)
                     tpool_add_work(read_thread_function,(void*)clientx);
                     //read_thread_function((void*)clientx);
                 }
-#endif
-#ifndef __EPOLL__
-                if(FD_ISSET(slisten,&rset)) // new connection
+                if(isQuit == 1)
                 {
-                    int ret = new_connection(slisten,g_clients,&allset,&maxfd,0);
-                    if(ret != 1)
-                        continue;
-                    //int new_connection(int slisten,struct sockaddr_in* addr,CLIENT* client){
+                    break;
                 }
-                else if(FD_ISSET(0,&rset))
-                {
-                    if(pid != 0)
-                    {
-                        char btf[MAXBUF];
-                        fgets(btf, MAXBUF, stdin);
-                        if (!strncasecmp(btf, "quit", 4))
-                        {
-                            Log("request terminal chat£¡\n");
-                            //isQuit = 1;
-                            break;
-                        }
-                    }
-                }
-                else
-                {
-                    for(i=0; i<=g_maxi; i++)
-                    {
-                        if((sockfd = g_clients[i].fd)<0)
-                            continue;
-                        if(FD_ISSET(sockfd,&rset))
-                        {
-                            //bzero(buf,MAXBUF + 1);
-                            memset(buf,0,MAXBUF+1);
-                            if((n = recv(sockfd,buf,MAXBUF,0)) > 0)
-                            {
-                                Log("received data:%d,from %s:%s\n",n,inet_ntoa(g_clients[i].addr.sin_addr),g_clients[i].drivceId);
-                                //void* buffer = buf;
-                                CLIENT_HEADER* header = malloc(sizeof(CLIENT_HEADER));
-                                memset(header,0,sizeof(CLIENT_HEADER));
-                                memcpy(header,buf,sizeof(CLIENT_HEADER));
-
-                                void* buffer = malloc(header->totalLength);
-                                memcpy(buffer,buf,n);
-                                void* tempBuffer = buffer;
-                                tempBuffer += n;
-                                //more then MAXBUF begin
-                                if(header->totalLength>MAXBUF && header->totalLength > n)
-                                {
-                                    while((n=recv(sockfd,buf,MAXBUF,0))>0)
-                                    {
-                                        memcpy(tempBuffer,buf,n);
-                                        tempBuffer += n;
-                                    }
-                                }
-                                //end
-
-                                buffer = buffer+sizeof(CLIENT_HEADER);
-                                char token[255] = {0};
-//								char command1[255] = {0};
-                                strcpy(token,header->clienttoken);
-                                if(header->type == MESSAGE_HELO)
-                                {
-
-                                    send_helo(sockfd,header,&g_clients[i],token);
-
-                                }
-                                else if(header->type == MESSAGE_PING)
-                                {
-                                    send_OK(sockfd,MESSAGE_PING);
-                                    //save in redis
-                                }
-                                else if (header->type == MESSAGE)
-                                {
-                                    int ret = recvMessage(sockfd,header,buffer,&g_clients[i]);
-                                    if(ret != 1)
-                                    {
-                                        free(header);
-                                        free(buffer);
-                                        break;
-                                    }
-
-                                }
-                                else if(header->type == MESSAGE_BYE)
-                                {
-                                    send_OK(sockfd,MESSAGE_BYE);
-                                    //remove client from redis
-                                    removeClient(&g_clients[i]);
-                                    Log("client say goodbye '%s'\n", inet_ntoa(g_clients[i].addr.sin_addr));
-//                                    close_socket(sockfd,g_clients,i,&allset,0);
-                                    close_socket(&g_clients[i],&allset);
-                                }
-                                //for cluster
-                                /*
-                                else if(header->type == MESSAGE_SERVIER){
-
-                                }
-                                */
-                                else
-                                {
-                                    //remove client from redis
-                                    removeClient(&g_clients[i]);
-                                    Log("client say unkown code '%s,len:%d,recv:%s\n", inet_ntoa(g_clients[i].addr.sin_addr),n,buf);
-                                    //close_socket(sockfd,g_clients,i,&allset,0);
-                                    close_socket(&g_clients[i],&allset);
-                                }
-                                //Log("received data:%s\n from %s\n",buf,inet_ntoa(client[i].addr.sin_addr));
-                                Log("received data:%d,from %s:%s\n",n,inet_ntoa(g_clients[i].addr.sin_addr),g_clients[i].drivceId);
-
-                                free(header);
-
-                                free(buffer);
-                            }
-                            else
-                            {
-                                //remove client from redis
-                                removeClient(&g_clients[i]);
-                                Log("recv data< 0 errno:%d£¬error msg: '%s'\n", errno, strerror(errno));
-                                //close_socket(sockfd,g_clients,i,&allset,0);
-                                close_socket(&g_clients[i],&allset);
-
-                            }
-                        }
-                    }
-#endif
-                    if(isQuit == 1)
-                    {
-                        break;
-                    }
-                }
-
-
             }
-            if(isQuit == 1)
-            {
-                break;
-            }
+#endif
 
         }
-        pthread_mutex_init(&st.lock, NULL);
-        st.isexit = 1;
-        pthread_mutex_unlock(&st.lock);
-        pthread_mutex_init(&st2.lock, NULL);
-        st2.isexit = 1;
-        pthread_mutex_unlock(&st2.lock);
-        for(ij=0; ij<(system_config.push_thread_count+system_config.unin_thread_count); ij++)
+        if(isQuit == 1)
         {
-            pthread_join(coretthreadsId[ij],NULL);
+            break;
         }
+
+    }
+    pthread_mutex_init(&st.lock, NULL);
+    st.isexit = 1;
+    pthread_mutex_unlock(&st.lock);
+    pthread_mutex_init(&st2.lock, NULL);
+    st2.isexit = 1;
+    pthread_mutex_unlock(&st2.lock);
+    for(ij=0; ij<(system_config.push_thread_count+system_config.unin_thread_count); ij++)
+    {
+        pthread_join(coretthreadsId[ij],NULL);
+    }
 
 #ifdef __EPOLL__
-        close(epollfd);
+    close(epollfd);
 #endif
-        free(coretthreadsId);
-        tpool_destroy();
-        destroy_redis_pool();
-        close(slisten);
-        char pragme[500];
-        getRealPath(pragme);
-        strcat(pragme,"/");
-        strcat(pragme,"pushserver.lock");
-        deletePidFile(pragme);
+    free(coretthreadsId);
+    tpool_destroy();
+    destroy_redis_pool();
+    close(slisten);
+    char pragme[500];
+    getRealPath(pragme);
+    strcat(pragme,"/");
+    strcat(pragme,"pushserver.lock");
+    deletePidFile(pragme);
 #ifdef CHECKMEM
-        atexit(report_mem_leak);
+    atexit(report_mem_leak);
 #endif
-    }
+}
 
 
     void* sendMessage(void* args)
@@ -818,11 +683,7 @@ int main(int argc, char** argv)
 //    	setsockopt(connectfd,SOL_SOCKET,SO_RCVTIMEO,(char*)&timeout,sizeof(struct timeval));
         int i = 0;
         pthread_mutex_lock(&client_lock);
-#ifdef __EPOLL__
         for(i=0; i<MAX_CONNECTION_LENGTH; i++)
-#else
-        for(i=0; i<FD_SETSIZE; i++)
-#endif
         {
             if(client[i].fd < 0)
             {
@@ -839,17 +700,12 @@ int main(int argc, char** argv)
             }
         }
         pthread_mutex_unlock(&client_lock);
-#ifdef __EPOLL__
+
         if(i == MAX_CONNECTION_LENGTH)
-#else
-        if(i == FD_SETSIZE)
-#endif
             Log("too many connections");
         pthread_mutex_lock(&client_lock);
 #ifdef __EPOLL__
         addepollevent(connectfd,&client[i]);
-#else
-        FD_SET(connectfd,allset);
 #endif
         if(connectfd > *maxfd)
             *maxfd = connectfd;
@@ -999,15 +855,6 @@ save_dely_push:
 pop_pushlist:
                     continue;
                 }
-                
-                /*
-                CLIENT clientx;
-                pthread_mutex_lock(&client_lock);
-				memcpy(&clientx,&st->client[clientinfo->clientid],sizeof(CLIENT));
-				if(strncasecmp(clientx.drivceId,clientinfo->drivceId,strlen(clientx.drivceId)!=0))
-					goto save_dely_push;
-				pthread_mutex_unlock(&client_lock);
-				*/
 				CLIENT* clientx = &st->client[clientinfo->clientid];
                 if(clientx->fd != -1)
                 {
@@ -1021,42 +868,7 @@ pop_pushlist:
                 	goto save_dely_push;
                 }
                 //delete to Improve the system performance
-                /*
-
-                #ifndef __EPOLL__
-                for(mm=0; mm<FD_SETSIZE; mm++)
-                #endif
-                #ifdef __EPOLL__
-                    for(mm=0; mm<MAX_EVENTS; mm++)
-                #endif
-                    {
-                		clientx = &st->client[mm];
-                        if(clientx->fd<0) break;
-                        char* cip = NULL;
-                        int cport = -1;
-                        cport = clientx->addr.sin_port;
-                        cip = inet_ntoa(sclientx->addr.sin_addr);
-                        if(strcmp(cip,clientinfo->clientip) == 0 && cport == clientinfo->clinetport)
-                        {
-                            //send message to client
-                            printf(">>--------------------start push message--------------------------<<\n");
-                            print_push_info(messageinfo);
-                            printf(">>------------------------end-------------------------------------<<\n");
-                            isHasClient = send_pushlist_message(messageinfo,clientinfo,clientx);
-                            Log("isHasClient=%d,errno:%d,error msg: '%s'\n",isHasClient, errno, strerror(errno));
-                            break;
-                        }
-                    }
-                    if(isHasClient == 0)
-                	{
-                   	 	goto save_dely_push;
-                	}
-                */
-                //here will delete in thread
-                //freePushMessage(messageinfo);
                 freeClientInfo(clientinfo);
-
-
                 if(st->isexit != 0)
                 {
                     Log("------------pushlist_send_thread thread exit------------------\n");
@@ -1253,35 +1065,3 @@ send_error:
             }
         }
     }
-    /*
-    void createsig(int sig){
-
-    	struct sigaction act;
-
-        sigemptyset(&act.sa_mask);
-        act.sa_flags = SA_SIGINFO;
-        act.sa_sigaction = new_op;
-        sigaction((int)p, &act, NULL);
-        //signal(SIGALRM, ouch);
-        printf("\nsigal = %d\n", (int)p);
-
-        signal(SIGHUP, ouch);
-    } */
-
-    //create md5
-    /*
-    char *s = "123456";
-    unsigned char ss[16];
-    MD5Init( &md5c );
-    char bufx[33]={'\0'};
-    char tmp[3]={'\0'};
-    MD5Update( &md5c, s, strlen(s) );
-    MD5Final( ss, &md5c );
-    printf("%s\n",ss);
-    for( i=0; i<16; i++ ){
-    sprintf(tmp,"%02X", ss[i] );
-    strcat(bufx,tmp);
-    }
-    printf("%s",bufx);
-    printf( "\t%s\n", s );
-    */
