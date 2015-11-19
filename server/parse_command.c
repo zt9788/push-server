@@ -102,9 +102,10 @@ int parseClientMessage(int sockfd,void* bufs,client_header_2_t* header,char* dri
 	if(sendtocount > 0 ){
 		for(i=0;i<sendtocount;i++){
 			int len = ntohs(*(uint16_t*)buf);
-			sendto[i] = malloc(len);
+			sendto[i] = malloc(len+1);
+			memset(sendto[i],0,len+1);
 			buf += sizeof(uint16_t);
-			memcpy(sendto[i],buf,len);
+			strncpy(sendto[i],buf,len);
 			buf += len;
 			residueLen = residueLen - (sizeof(uint16_t) + len);
 		}
@@ -112,13 +113,14 @@ int parseClientMessage(int sockfd,void* bufs,client_header_2_t* header,char* dri
 	int recvlens = recvlen;
 	char recvBuf[MAXBUF]={0};
 	if(header->messagetype == MESSAGE_TYPE_TXT){
-		int length = ntohs(*(uint16_t*)buf);
+		int length = ntohs(*(uint16_t*)buf);       
 		buf += sizeof(uint16_t);
 		residueLen -= sizeof(uint16_t);
-		contentOrFileName = malloc(length);
+		contentOrFileName = malloc(length+1);
+		memset(contentOrFileName,0,length+1);
 		int templen = -1;
 		if(recvlen >= header->total-sizeof(client_header_2_t)){
-			memcpy(contentOrFileName,buf,length);		
+			strncpy(contentOrFileName,buf,length);		
 		}		
 		else{
 			memcpy(contentOrFileName,buf,residueLen);	
@@ -181,6 +183,7 @@ int parseClientMessage(int sockfd,void* bufs,client_header_2_t* header,char* dri
 		push_message_info_t* info = NULL;
 #ifndef CLIENTMAKE	
 		//TODO have no dely time to save in redis
+		printf("need to save user %s\n",sendto[i]);
 		putmessageinfo2(contentOrFileName,sendto[i],contentOrFileName,
 					newFilename,240,driveceId,
 					fromip,header->messagetype,0,&info);
@@ -237,12 +240,12 @@ int  createClientHelo(void** retbuffer,unsigned	char clienttype,char* drivceId,c
 	return length;
 }
 
-void* parseServerHeader(void* bufs,server_header_2_t	* header){
+void* parseServerHeader(void* bufs,server_header_2_t* header){
 	if(bufs == NULL)
 		return NULL;
 	char* buf = bufs;
-	if(strlen(buf) < sizeof(server_header_2_t))
-		return NULL;
+	//if(strlen(buf) < sizeof(server_header_2_t))
+	//	return NULL;
 	memcpy(header,buf,sizeof(server_header_2_t));
 	buf += sizeof(server_header_2_t);
 	return buf;
@@ -297,7 +300,7 @@ void* createServerHelo(int serverid,unsigned char isOpenMessageResponse,unsigned
 
 server_header_2_t* createServerHeader(int serverid,unsigned char command,unsigned char messagetype){
 	server_header_2_t * header = malloc(sizeof(server_header_2_t));
-	header->command == command;
+	header->command = command;
 	header->serverid = serverid;
 	header->messagetype = messagetype;	
 	header->total = sizeof(server_header_2_t);	
@@ -470,10 +473,13 @@ int createServerMessagereply(int sock,int serverid,push_message_info_t* info,cha
 	}
 	header->total = total;	
 	printf("server message total:%d",total);
+	//total+=20;
 	retbuf = malloc(total);
+	memset(retbuf,0,total);	
 	void* buf = retbuf;
 	memcpy(buf,header,sizeof(server_header_2_t));	
-	buf += sizeof(server_header_2_t);
+	dump_data(retbuf,total);
+	buf += sizeof(server_header_2_t);	
 	//send time
 	*(uint32_t*)buf = htonl((uint32_t)info->sendtime_l);
 	buf += sizeof(uint32_t);
@@ -485,7 +491,7 @@ int createServerMessagereply(int sock,int serverid,push_message_info_t* info,cha
 	//messageid
 	*(uint16_t*)buf = htons(strlen(info->messageid));
 	buf += sizeof(uint16_t);
-	memcpy(buf,info->messageid,sizeof(info->messageid));
+	memcpy(buf,info->messageid,strlen(info->messageid));
 	buf += strlen(info->messageid);
 	//message content
 	//buf = createServerBuffforMessage(buf,serverid,info,tmpPath);
@@ -518,15 +524,17 @@ int createServerMessagereply(int sock,int serverid,push_message_info_t* info,cha
 	int sumlen = 0;
 	//TODO
 	dump_data(retbuf,total);
-	
-	do{
-		if((total-sumlen) > MAXBUF)
-			sendlen = send(sock,retbuf+sumlen,MAXBUF,0);	
-		else
-			sendlen = send(sock,retbuf+sumlen,total-sumlen,0);	
-		sumlen += sendlen;	
-	}while(sumlen<total);
+	if(sock != -1){			
+		do{
+			if((total-sumlen) > MAXBUF)
+				sendlen = send(sock,retbuf+sumlen,MAXBUF,0);	
+			else
+				sendlen = send(sock,retbuf+sumlen,total-sumlen,0);	
+			sumlen += sendlen;	
+		}while(sumlen<total);
+	}
+	printf("send len is:%d\n",sumlen);
 	//TODO
-	//free(retbuf);
+	free(retbuf);
 	return sumlen;
 }
