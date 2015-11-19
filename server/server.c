@@ -302,7 +302,7 @@ int main(int argc, char** argv)
         pthread_mutex_lock(&client_lock);
         int timeout = 1;
 #ifdef __EPOLL__
-        nready = epoll_wait(epollfd, eventList, MAX_EVENTS, timeout);
+        nready = epoll_wait(epollfd, eventList, MAX_EVENTS, -1);//timeout);
 #endif
         pthread_mutex_unlock(&client_lock);
         int isQuit = 0;
@@ -656,7 +656,7 @@ void* read_thread_function(void* client_t)
                       header.clienttype,
                       &clientinfo);
             freeClientInfo(clientinfo);
-            printf(">> welcome %s system is:%d\n",client->drivceId,client->clienttype);
+            printf(">> welcome %s system is:%d\n",client->drivceId,client->clienttype); 
             void* sheader = createServerHelo(system_config.serverid,0,0,0);
             ret = send(sockfd,sheader,sizeof(server_header_2_t),0);
             free(sheader);
