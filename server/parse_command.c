@@ -14,34 +14,31 @@
 #define __DEBUG(format, ...) printf("FILE: "__FILE__", LINE: %d: "format"/n", __LINE__, ##__VA_ARGS__)
 int createClientMessage(int sock,unsigned	char messsagetype,unsigned	char clienttype,
 						short delytime,
-						char* contentOrFileName,short len,...){
+						char* contentOrFileName,short len,list_t *sendto){
 	client_header_2_t* header = createClientHeader(COMMAND_MESSAGE,messsagetype,clienttype);
-	char* s = NULL;
 	int i = 0;
 	int length = sizeof(client_header_2_t);	
 	char* tempBufhead = malloc(MAX_DRIVCEID_LENGTH*len+sizeof(uint16_t)*(len+1));
 	int templenth = 0;
 	void* tempBuf = tempBufhead;
-	va_list argp;
-	va_start(argp,len);
 	
 	*(uint16_t*)tempBuf = htons(len);
 	tempBuf += sizeof(uint16_t);
 	templenth += sizeof(uint16_t);
-	for(i=0;i<len;i++){
-		s = va_arg(argp,char*) ;
-		if(s==NULL || strlen(s) <=0){
-			continue;
-		}
-		*(uint16_t*)tempBuf=htons(strlen(s));
+	list_node_t *last = NULL;
+	
+	while((last=list_lpop(sendto))!= NULL){
+		*(uint16_t*)tempBuf=htons(strlen(last->val));
 		tempBuf += sizeof(uint16_t);
-		memcpy(tempBuf,s,strlen(s));
-		tempBuf += strlen(s);
+		memcpy(tempBuf,last->val,strlen(last->val));
+		tempBuf += strlen(last->val);		
 		
 		templenth += sizeof(uint16_t);
-		templenth += strlen(s);
+		templenth += strlen(last->val);
+		
+		free(last);
 	}
-	va_end(argp);			
+
 	//TODO file command 
 	length += sizeof(uint16_t)+templenth;
 	char* filename = NULL;
@@ -75,9 +72,17 @@ int createClientMessage(int sock,unsigned	char messsagetype,unsigned	char client
 	}
 	free(tempBufhead);
 	int sendlen = 0;
+	int sumlen = 0;
 	//TODO
 	dump_data(retbuf,length);
-	sendlen = send(sock,retbuf,length,0);
+	do{
+		if((length-sumlen) > MAXBUF)
+			sendlen = send(sock,retbuf,MAXBUF,0);	
+		else
+			sendlen = send(sock,retbuf,length-sumlen,0);	
+		sumlen += sendlen;	
+	}while(sumlen<length);
+	
 	free(retbuf);
 	return sendlen;
 }
@@ -175,8 +180,9 @@ int parseClientMessage(int sockfd,void* bufs,client_header_2_t* header,char* dri
 	for(i=0;i<sendtocount;i++){
 		push_message_info_t* info = NULL;
 #ifndef CLIENTMAKE	
+		//TODO have no dely time to save in redis
 		putmessageinfo2(contentOrFileName,sendto[i],contentOrFileName,
-					newFilename,delytime,driveceId,
+					newFilename,240,driveceId,
 					fromip,header->messagetype,0,&info);
 		if(info != NULL){
 			freePushMessage(info);	
@@ -290,7 +296,7 @@ void* createServerHelo(int serverid,unsigned char isOpenMessageResponse,unsigned
 }
 
 server_header_2_t* createServerHeader(int serverid,unsigned char command,unsigned char messagetype){
-	struct server_header_2 * header = malloc(sizeof(struct server_header_2));
+	server_header_2_t * header = malloc(sizeof(server_header_2_t));
 	header->command == command;
 	header->serverid = serverid;
 	header->messagetype = messagetype;	
@@ -343,43 +349,184 @@ void* createServerBuffforMessage(void* bufs,
 	return buf;
 }
 //TODO
-void* parseServerBufferMessage(){
+int parseServerMessage(int sockfd,void* bufs,server_header_2_t* header,
+		char* fromdriveceId,char* messageid,char** content,int recvlen,char* tempPath){
+	char* buf = bufs;
+	int i = 0;
 	
+	int residueLen = recvlen;
+	//char fileName[255]= {0};
+    char newFilename[500]= {0};    
+    //sendtime
+	int sendtime = ntohl(*(uint32_t*)buf);
+	buf += sizeof(uint32_t);
+	residueLen -= sizeof(uint32_t);
+	//form
+	int fromlength = ntohs(*(uint16_t*)buf);
+	buf += sizeof(uint16_t);
+	strncpy(fromdriveceId,buf,fromlength);
+	buf += fromlength;
+	residueLen -= sizeof(uint16_t) - fromlength;
+	//messsageid
+	int messagelength = ntohs(*(uint16_t*)buf);
+	buf += sizeof(uint16_t);
+	strncpy(messageid,buf,messagelength);
+	buf += messagelength;
+	residueLen -= sizeof(uint16_t) - messagelength;
+	//content
+	void* contentOrFileName = NULL;	
+	int recvlens = recvlen;
+	char recvBuf[MAXBUF]={0};
+	if(header->messagetype == MESSAGE_TYPE_TXT){
+		int length = ntohs(*(uint16_t*)buf);
+		buf += sizeof(uint16_t);
+		residueLen -= sizeof(uint16_t);
+		contentOrFileName = malloc(length);
+		int templen = -1;
+		if(recvlen >= header->total-sizeof(client_header_2_t)){
+			memcpy(contentOrFileName,buf,length);
+			*content = contentOrFileName;	
+		}		
+		else{
+			memcpy(contentOrFileName,buf,residueLen);	
+			while(header->total>recvlens){			
+				int ret = -1;
+				if((header->total-recvlens)>MAXBUF){							
+					ret = recv(sockfd,recvBuf,MAXBUF,0);				
+				}else{							
+					ret = recv(sockfd,recvBuf,header->total-recvlens,0);
+				}
+				if(ret<=0){
+					free(contentOrFileName);
+					return -1;
+				}
+				memcpy(contentOrFileName,recvBuf,ret);
+				recvlens += ret;
+			}
+		}
+	}else{	
+		//TODO				
+		char tempStr[500]= {0};		
+		int length = ntohs(*(uint16_t*)buf);
+		buf += sizeof(uint16_t);
+		contentOrFileName = malloc(length);
+		memcpy(contentOrFileName,buf,length);
+		
+		char* fileName = getFileName(contentOrFileName);
+  		sprintf(tempStr,"%s",fileName);
+        sprintf(tempStr,"%s%s",tempStr,time);
+        createMd5(tempStr,newFilename);
+        int filesize = ntohl(*(uint32_t*)buf);
+        *buf += sizeof(uint32_t);
+        char fullpath[500]={0};
+        createfullpath(tempPath,newFilename,fullpath);
+        FILE * flogx=fopen(fullpath,"a");
+    	if (NULL==flogx){
+	    	free(contentOrFileName);
+	    	return -1;
+	    }    		
+	    residueLen = residueLen -(sizeof(uint16_t)+sizeof(uint32_t)+length);
+        fwrite(buf,recvlens-residueLen,1,flogx);
+		while(header->total>recvlens){			
+			int ret = -1;
+			if((header->total-recvlens)>MAXBUF){							
+				ret = recv(sockfd,recvBuf,MAXBUF,0);				
+			}else{							
+				ret = recv(sockfd,recvBuf,header->total-recvlens,0);
+			}
+			if(ret<=0){
+				free(contentOrFileName);
+				fclose(flogx);
+				return -1;
+			}
+			fwrite(recvBuf,ret,1,flogx);
+			recvlens += ret;
+		}
+		fclose(flogx);
+	}
+	//if(contentOrFileName)
+	//	free(contentOrFileName);	
+	return 0;
 }
 /********************
 	it is do not have file content in return buffer
 *********************/
-void* createServerMessagereply(int serverid,push_message_info_t* info,char* tmpPath){
+int createServerMessagereply(int sock,int serverid,push_message_info_t* info,char* tmpPath){
 	unsigned char* retbuf = NULL;
 	int total = 0;
-	struct server_header_2 * header = createServerHeader(serverid,COMMAND_MESSAGE,info->messagetype);
-	total = sizeof(struct server_header_2)+2+strlen(info->to)+2+strlen(info->messageid);	
+	server_header_2_t * header = createServerHeader(serverid,COMMAND_MESSAGE,info->messagetype);
+	//count length
+	total = sizeof(server_header_2_t)+sizeof(uint32_t)+sizeof(uint16_t) + 
+			strlen(info->to)+sizeof(uint16_t)+strlen(info->messageid);	
+
 	if(info->messagetype == MESSAGE_TYPE_TXT){
-		total += 2+strlen(info->content);
+		total += sizeof(uint16_t)+strlen(info->content);
 	}else{
-		total += 2+strlen(info->orgFileName);
+		total += sizeof(uint16_t)+strlen(info->orgFileName);
 		total += sizeof(uint32_t);
 		char fullpath[500]={0};
 		createfullpath(tmpPath,info->content,fullpath);
-		total += get_file_size(fullpath);		
+		total += get_file_size(fullpath);
 	}
-	header->total = total;
-	
+	header->total = total;	
+	printf("server message total:%d",total);
 	retbuf = malloc(total);
-	unsigned char* buf = retbuf;
-	memcpy(buf,header,sizeof(struct server_header_2));
-	buf += sizeof(struct server_header_2);
-	//memcpy(buf,htons(strlen(info->to)),sizeof(uint16_t));
+	void* buf = retbuf;
+	memcpy(buf,header,sizeof(server_header_2_t));	
+	buf += sizeof(server_header_2_t);
+	//send time
+	*(uint32_t*)buf = htonl((uint32_t)info->sendtime_l);
+	buf += sizeof(uint32_t);
+	//to
 	*(uint16_t*)buf = htons(strlen(info->to));
-	buf += 2;
+	buf += sizeof(uint16_t);
 	memcpy(buf,info->to,strlen(info->to));
 	buf += strlen(info->to);
-	//memcpy(buf,htons(strlen(info->messageid)),sizeof(uint16_t));
+	//messageid
 	*(uint16_t*)buf = htons(strlen(info->messageid));
-	buf += 2;
+	buf += sizeof(uint16_t);
 	memcpy(buf,info->messageid,sizeof(info->messageid));
 	buf += strlen(info->messageid);
-	buf = createServerBuffforMessage(buf,serverid,info,tmpPath);
+	//message content
+	//buf = createServerBuffforMessage(buf,serverid,info,tmpPath);
+	
+	if(info->messagetype == MESSAGE_TYPE_TXT){
+		*(uint16_t*)buf = htons(strlen(info->content));
+		buf += sizeof(uint16_t);
+		memcpy(buf,info->content,strlen(info->content));
+	}else{
+		//TODO
+		*(uint16_t*)buf = htons(strlen(info->orgFileName));
+		buf += sizeof(uint16_t);
+		memcpy(buf,info->orgFileName,strlen(info->orgFileName));
+		buf += strlen(info->orgFileName);
+		char fullpath[500]={0};
+		createfullpath(tmpPath,info->content,fullpath);
+		unsigned long filesize = get_file_size(fullpath);
+		*(uint32_t*)buf = htonl(filesize);
+		buf += sizeof(uint32_t);//TODO max send sizeof(uint32_t)
+		int ret = 0;
+		unsigned char* tempBuf = readtofile(tmpPath,info->content,&ret);		
+		memcpy(buf,tempBuf,ret);
+		free(tempBuf);
+	}
+	
+	
 	free(header);
-	return retbuf;
+	
+	int sendlen = 0;
+	int sumlen = 0;
+	//TODO
+	dump_data(retbuf,total);
+	
+	do{
+		if((total-sumlen) > MAXBUF)
+			sendlen = send(sock,retbuf+sumlen,MAXBUF,0);	
+		else
+			sendlen = send(sock,retbuf+sumlen,total-sumlen,0);	
+		sumlen += sendlen;	
+	}while(sumlen<total);
+	//TODO
+	//free(retbuf);
+	return sumlen;
 }

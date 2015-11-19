@@ -14,6 +14,7 @@
 #include "log.h"
 #include "sc.h"
 #include "parse_command.h"
+#include "list.h"
 
 //#define MAXBUF 1024
 #define WIN32
@@ -181,7 +182,7 @@ void* client_thread(char **argv)
     {
         int sockfd, len;
         struct sockaddr_in dest;
-        char buf[MAXBUF + 1];
+        char bufs[MAXBUF + 1];
         char token[MAXBUF];
         fd_set rfds;
         struct timeval tv;
@@ -411,16 +412,45 @@ void* client_thread(char **argv)
                 }
                 else if (FD_ISSET(sockfd, &rfds))
                 {
-                    bzero(buf, MAXBUF + 1);
-                    len = recv(sockfd, buf, MAXBUF, 0);
+                    bzero(bufs, MAXBUF + 1);
+                    len = recv(sockfd, bufs, MAXBUF, 0);
                     //printf("recv data recv len:%d,SERVER_HEADER len:%d\n",len,sizeof(SERVER_HEADER));
                     printf("recv:\n");
-                    dump_data(buf,len);
+                    dump_data(bufs,len);
+                    char* buf = bufs;
                     
                     //SERVER_HEADER* header = malloc(sizeof(SERVER_HEADER));
                     //bzero(header,sizeof(SERVER_HEADER));
+                    server_header_2_t header;
+                    memset(&header,0,sizeof(server_header_2_t));
                     if (len > 0)
                     {
+                    	void* buff = parseServerHeader(buf,&header);
+                    	printf("the command %02X\n",header.command);
+                    	if(len>=sizeof(server_header_2_t)){
+	                    	//memcpy(&header,buf,sizeof(server_header_2_t));	                    	
+	                    	buf += sizeof(server_header_2_t);
+	                    	len -= sizeof(server_header_2_t);
+	                    	if(header.command == COMMAND_MESSAGE){
+	                    		char fromdrivceId[64]={0};
+	                    		char messageid[64]={0};
+	                    		char* message = NULL;
+	                    		int ret = parseServerMessage(sockfd,buff,
+											&header,fromdrivceId,messageid,&message,len,"/tmp");
+	                    		if(ret < 0){
+		                    		printf("has error\n");	
+		                    	}
+		                    	printf("%s,%s,%s",messageid,fromdrivceId,message);
+		                    	free(message);
+		                    	char* retbuf = createClientHeader(COMMAND_YES,MESSAGE_TYPE_NULL,(unsigned char)1);
+		                    	ret = send(sockfd,retbuf,sizeof(client_header_2_t),0);
+		                    	if(ret < 0){
+		                    		printf("has error\n");	
+		                    	}                					
+	                    	}
+	                    }else{
+                    		
+                    	}
 						/*
                         if(len>=sizeof(SERVER_HEADER))
                         {
@@ -551,10 +581,20 @@ int main(int argc, char **argv){
             isfile = 1;
         }   
 		int len = -1;	
+		list_t *send_list = list_new();
+		int j=0;
+		 for(j=0; j<totokenLength; j++)
+		{
+			list_node_t *node = list_node_new(totoken_temp[j]);
+            list_rpush(send_list, node);
+        }
+
         if(isfile == 0)
-  			len = createClientMessage(g_sock,MESSAGE_TYPE_TXT,1,0,buf,1,"kuer");
+  			len = createClientMessage(g_sock,MESSAGE_TYPE_TXT,1,0,buf,1,send_list);
         else
-       		len = createClientMessage(g_sock,MESSAGE_TYPE_FILE,1,0,buf,1,"kuer");
+       		len = createClientMessage(g_sock,MESSAGE_TYPE_FILE,1,0,buf,1,send_list);
+       	
+   		list_destroy(send_list);
         /*
         int length = -1;
         CLIENT_HEADER* header = malloc(sizeof(CLIENT_HEADER));

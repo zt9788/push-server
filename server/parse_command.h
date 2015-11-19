@@ -7,6 +7,7 @@
 #include <error.h>
 #include <errno.h>
 #include <fcntl.h>
+#include "list.h"
 #include "util.h"
 #include "sc.h"
 #include "messagestorage.h"
@@ -31,7 +32,7 @@ int parseClientHelo(void* buf,char* drivceId,char* iostoken,int clienttype);
 void* parseServerHelo(void* buf,server_config_to_client_t* config);
 int createClientMessage(int sock,unsigned	char messsagetype,unsigned	char clienttype,
 						short delytime,
-						char* contentOrFileName,short len,...);
+						char* contentOrFileName,short len,list_t* sendto);
 int parseClientMessage(int sockfd,void* bufs,client_header_2_t* header,char* driveceId,
 		char* token,int recvlen,char* fromip,char* tempPath);
 client_header_2_t* createClientHeader(unsigned char command,unsigned char messagetype,unsigned char clienttype);
@@ -44,7 +45,8 @@ void* createServerBuffforMessage(void* bufs,
 					int serverid,
 					push_message_info_t* info,
 					char* tmpPath);
-void* createServerMessagereply(int serverid,push_message_info_t* info,char* tmpPath);
+int createServerMessagereply(int sock,int serverid,push_message_info_t* info,char* tmpPath);
 
-
+int parseServerMessage(int sockfd,void* bufs,server_header_2_t* header,
+		char* fromdriveceId,char* messageid,char** content,int recvlen,char* tempPath);
 #endif /* !PARSE_COMMADN_H */

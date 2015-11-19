@@ -94,8 +94,8 @@ typedef  unsigned char BYTE;
      byte      byte         byte                           =====> all header ,ping,or others   < 4096    
    command   clienttype  messagetype  
    
-0)   byte[2]       char[~64]                               =====> in helo command   < 4096   
-0) fromlength    fromdrivceid    
+0)   long     byte[2]       char[~64]                      =====> in helo command   < 4096   
+0) sendtime  fromlength    fromdrivceid    
 
 1)  byte[2]    char[~64]    byte[2]          bytes         =====> in helo command   < 4096   
 1) idlength   messageid    contentlength    content     
@@ -108,7 +108,7 @@ typedef  unsigned char BYTE;
 typedef struct server_header_2{
 	unsigned char command;//command 	
 	unsigned char messagetype;//
-	short serverid;
+	uint16_t serverid;
 	int total;
 }server_header_2_t;
 

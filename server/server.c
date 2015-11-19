@@ -553,6 +553,7 @@ void close_socket(CLIENT* client)
  *
  *
  ***********************/
+ /*
 void send_OK(int sockfd,int type)
 {
     SERVER_HEADER* sheader = malloc(sizeof(SERVER_HEADER));
@@ -567,63 +568,62 @@ void send_OK(int sockfd,int type)
     //Log("len=%d:%d ,errno:%d£¬error msg: '%s'\n",len,sizeof(SERVER_HEADER) , errno, strerror(errno));
 
     free(sheader);
-}
+}*/
 int new_connection(int slisten,//struct sockaddr_in* addr,
                    CLIENT* client,
                    int* maxfd,int epollfd)
-{
-    socklen_t len;
-    //fd_set rset,allset;
-    struct sockaddr_in addr;
-    memset(&addr,0,sizeof(struct sockaddr_in));
-    len = sizeof(struct sockaddr);
-    int connectfd;
-    if((connectfd = accept(slisten,
-                           (struct sockaddr*)&addr,&len)) == -1)
+{    
+    while(1)
     {
-        perror("accept() error\n");
-        return 0;
-    }
-    setnonblocking(connectfd);
-    struct timeval timeout =
-    {
-        1,0
-    };
-    setsockopt(connectfd,SOL_SOCKET,SO_SNDTIMEO,(char*)&timeout,sizeof(struct timeval));
+        struct sockaddr_in addr;
+	    memset(&addr,0,sizeof(struct sockaddr_in));	
+    	socklen_t len = sizeof(struct sockaddr);
+    	int connectfd = accept(slisten,(struct sockaddr*)&addr,&len);    
+	    if (connectfd == -1) {  
+		    if (errno != EAGAIN && errno != ECONNABORTED   
+		            && errno != EPROTO && errno != EINTR){
+            		perror("accept error");  
+					return 0;		
+   			}	
+			else{
+				break;
+			}	        
+		}  
+    	
+	    setnonblocking(connectfd);
+	    struct timeval timeout ={1,0};
+	    setsockopt(connectfd,SOL_SOCKET,SO_SNDTIMEO,(char*)&timeout,sizeof(struct timeval));
 //    	setsockopt(connectfd,SOL_SOCKET,SO_RCVTIMEO,(char*)&timeout,sizeof(struct timeval));
-    int i = 0;
-    pthread_mutex_lock(&client_lock);
-    for(i=0; i<MAX_CONNECTION_LENGTH; i++)
-    {
-        if(client[i].fd < 0)
-        {
-            client[i].fd = connectfd;
-            //client[i].clientid=autoclientid;
-            client[i].addr = addr;
-            pthread_mutex_init(&client[i].opt_lock , NULL);
-            Log("Yout got a connection from %s.\n",
-                inet_ntoa(client[i].addr.sin_addr));
-            active_socket_connect++;
-            Log("now connection user is %d\n",active_socket_connect);
-            //autoclientid++;
-            break;
-        }
-    }
-    pthread_mutex_unlock(&client_lock);
-
-    if(i == MAX_CONNECTION_LENGTH)
-        Log("too many connections");
-    pthread_mutex_lock(&client_lock);
+	    int i = 0;
+	    pthread_mutex_lock(&client_lock);
+	    for(i=0; i<MAX_CONNECTION_LENGTH; i++)
+	    {
+	        if(client[i].fd < 0)
+	        {
+	            client[i].fd = connectfd;
+	            client[i].addr = addr;
+	            pthread_mutex_init(&client[i].opt_lock , NULL);
+	            Log(">> Yout got a connection from %s.\n",
+	                inet_ntoa(client[i].addr.sin_addr));
+	            active_socket_connect++;
+	            Log(">> now connection user is %d\n",active_socket_connect);
+	            break;
+	        }
+	    }
+	    pthread_mutex_unlock(&client_lock);	
+	    if(i == MAX_CONNECTION_LENGTH)
+	        Log("too many connections");
+	    pthread_mutex_lock(&client_lock);
 #ifdef __EPOLL__
-    addepollevent(connectfd,&client[i]);
+	    addepollevent(connectfd,&client[i]);
 #endif
-    if(connectfd > *maxfd)
-        *maxfd = connectfd;
-    if(i > g_maxi)
-        g_maxi = i;
-    pthread_mutex_unlock(&client_lock);
+	    if(connectfd > *maxfd)
+	        *maxfd = connectfd;
+	    if(i > g_maxi)
+	        g_maxi = i;
+	    pthread_mutex_unlock(&client_lock);
+    }
     return 1;
-
 }
 
 
@@ -671,23 +671,25 @@ void* read_thread_function(void* client_t)
         else if(header.command == COMMAND_HELO)
         {
             int ret = parseClientHelo(bufs,client->drivceId,client->token,header.messagetype);
+            if(ret < 1)
+                goto recv_error_close_client;
             struct sockaddr_in addr;
             socklen_t slen;
             getsockname(sockfd,(struct sockaddr*)&addr,&slen);
             client_info_t* clientinfo = NULL;
-            newClient(client,system_config.serverid,inet_ntoa(addr.sin_addr),
+            newClient(client,
+					  system_config.serverid,
+					  inet_ntoa(addr.sin_addr),
                       client->drivceId,
-                      1, /* TODO is need get from client header from client */
+                      header.clienttype,
                       &clientinfo);
-
-            if(ret < 1)
-                goto recv_error_close_client;
+            freeClientInfo(clientinfo);
             void* sheader = createServerHelo(system_config.serverid,0,0,0);
             ret = send(sockfd,sheader,sizeof(server_header_2_t),0);
             free(sheader);
             if(ret <= 0)
                 goto recv_error_close_client;
-                
+            pthread_mutex_unlock(&client->opt_lock);
             send_helo_to_client_message(client);
         }
         else if(header.command == COMMAND_BYE)
@@ -707,7 +709,7 @@ void* read_thread_function(void* client_t)
         }
         else if(header.command == COMMAND_OTHER_MESSAGE)
         {
-            //...
+            //... 
         }
         else if(header.command == COMMAND_SERVER)
         {
@@ -715,6 +717,7 @@ void* read_thread_function(void* client_t)
         }
         else
         {
+        	//get kuozhanxieyi
             Log("client say unkown code:%d ,%s,len:%d,recv:%s\n",header.messagetype,
                 inet_ntoa(client->addr.sin_addr),n,buf);
 recv_error_close_client:
@@ -817,7 +820,10 @@ int send_pushlist_message(
     CLIENT* client)
 {
 	int ret = 0;
-	createServerMessagereply(system_config.serverid,messageinfo,system_config.tempPath);
+	ret = createServerMessagereply(client->fd,system_config.serverid,messageinfo,system_config.tempPath);
+	if(ret < 0)
+		return 0;
+	
 	/*    
     int sendlen = sizeof(SERVER_HEADER);//+content!=NULL?strlen(content):0;
     SERVER_HEADER* sheader = malloc(sizeof(SERVER_HEADER));
@@ -934,6 +940,7 @@ send_error:
 	    if(cheader.command == COMMAND_YES){
 	    	messageIsSendOK2( messageinfo,system_config.serverid);
 	    }
+	    return 1;
     }
 	else
     {

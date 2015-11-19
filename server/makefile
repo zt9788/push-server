@@ -3,7 +3,7 @@
 CC=gcc
 CFLAGS=-g#-Wall -g
 LDFLAGS=-DDEBUG -D__EPOLL__ -lpthread -L/usr/local/lib/ -lhiredis -luuid -lrt 
-all:clean server.o log.o md5.o messagestorage.o util.o readconf.o thread_pool.o redis_pool.o daemon.o leak_detector_c.o pushserver
+all:clean server.o log.o list.o list_iterator.o list_node.o md5.o messagestorage.o util.o readconf.o thread_pool.o socket_plush.o redis_pool.o daemon.o parse_command.o leak_detector_c.o pushserver
 .PHONY : all
 #server.o:sc.h
 #${CC}  ${CFLAGS}  -c server.c  ${LDFLAGS}
@@ -27,9 +27,20 @@ server.o:sc.h
 	${CC}  ${CFLAGS}  -c server.c  ${LDFLAGS}
 daemon.o :daemon.h
 	${CC} ${CFLAGS} -c daemon.c ${LDFLAGS}
-
+parse_command.o:parse_command.h
+	${CC} ${CFLAGS} -c parse_command.c ${LDFLAGS}
+socket_plush.o:socket_plush.h
+	${CC} ${CFLAGS} -c socket_plush.c ${LDFLAGS}
+	
+list.o:list.h
+	${CC} -O3 -std=c99 -Wall -Wextra -Ideps -c list.c
+list_iterator.o:list.h
+	${CC} -O3 -std=c99 -Wall -Wextra -Ideps -c list_iterator.c
+list_node.o:list.h
+	${CC} -O3 -std=c99 -Wall -Wextra -Ideps -c list_node.c
+	
 pushserver:
-	${CC} ${CFLAGS}  server.o messagestorage.o daemon.o log.o leak_detector_c.o md5.o util.o readconf.o thread_pool.o redis_pool.o -o pushserver ${LDFLAGS}
+	${CC} ${CFLAGS}  server.o messagestorage.o list.o list_iterator.o list_node.o daemon.o log.o leak_detector_c.o md5.o util.o socket_plush.o readconf.o thread_pool.o redis_pool.o parse_command.o -o pushserver ${LDFLAGS}
 
 clean:  
 	rm  -rf  *.o  
