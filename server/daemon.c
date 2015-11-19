@@ -29,7 +29,7 @@ SOFTWARE.
 #include "daemon.h"
 #include<sys/wait.h>
 #include <string.h>
-#ifdef DEBUG
+#ifdef CHECKMEM
 #include "leak_detector_c.h"
 #endif 
 

@@ -69,28 +69,46 @@ typedef struct pushstruct
 {
 //	redisContext* redis;
 //	int sockid;
-	CLIENT* client;
-	pthread_mutex_t lock;
-	int isexit;
+    CLIENT* client;
+    pthread_mutex_t lock;
+    int isexit;
 //	char redisip[20];
 //	int redisport;
-	int timeout;
-	//struct sockaddr_in addr;
+    int timeout;
+    //struct sockaddr_in addr;
 } pushstruct;
-typedef struct thread_struct{
+typedef struct thread_struct
+{
     int sockfd;
     pthread_mutex_t lock;
     int isexit;
     char token[255];
-}thread_struct;
+} thread_struct;
+
+pthread_mutex_t lock;
+void recvReturn(int sockfd)
+{
+    char buf[MAXBUF];
+    int ret = recv(sockfd,buf,MAXBUF,0);
+    if(ret > 0)
+    {
+        printf("recv return message:\n");
+        dump_data(buf,ret);
+    }
+    else{
+    	printf("recv error:%d",ret);
+    	
+    }
+}
 void sendhelo(int sockfd,char* token)
 {
-	void* buff = NULL;
-	int length = createClientHelo(&buff,1,token,NULL);
-	printf("helo\n");
-	dump_data(buff,length);
-	int len = send(sockfd, buff, length, 0);
-	/*
+	pthread_mutex_lock(&lock);
+    void* buff = NULL;
+    int length = createClientHelo(&buff,1,token,NULL);
+    printf("helo\n");
+    dump_data(buff,length);
+    int len = send(sockfd, buff, length, 0);
+    /*
     CLIENT_HEADER* header = malloc(sizeof(CLIENT_HEADER)+strlen(token));
     header->contentLength = 0;
     //header->tokenLength = strlen(token);
@@ -116,16 +134,19 @@ void sendhelo(int sockfd,char* token)
     {
         printf("msg:'%s  failed!\n", buff);
     }
-	
+    recvReturn(sockfd);
+    pthread_mutex_unlock(&lock);
 
 }
+
 void sendping(int sockfd,char* token)
 {
-	void* buff = createClientPing(1);
-	int len = send(sockfd, buff, sizeof(client_header_2_t), 0);
-	printf("ping\n");
-	dump_data(buff,len);
-	/*
+	pthread_mutex_lock(&lock);
+    void* buff = createClientPing(1);
+    int len = send(sockfd, buff, sizeof(client_header_2_t), 0);
+    printf("ping\n");
+    dump_data(buff,len);
+    /*
     CLIENT_HEADER* header = malloc(sizeof(CLIENT_HEADER));
     header->contentLength = 0;
     //header->tokenLength = strlen(token);
@@ -148,7 +169,8 @@ void sendping(int sockfd,char* token)
     {
         printf("msg:'%s  failed!\n", buff);
     }
-    
+    recvReturn(sockfd);
+    pthread_mutex_unlock(&lock);
 
 }
 /**
@@ -158,7 +180,7 @@ void thread(thread_struct* thread_s)
 {
     while(thread_s->isexit == 0)
     {
-        sendping(thread_s->sockfd,thread_s->token);
+
         int i = 0;
         for(i = 0; i<100; i++)
         {
@@ -167,6 +189,7 @@ void thread(thread_struct* thread_s)
             else
                 return;
         }
+        sendping(thread_s->sockfd,thread_s->token);
 
     }
 }
@@ -176,7 +199,7 @@ int g_sock;
 void* client_thread(char **argv)
 {
 
-    //char totoken_temp[64]={0};    
+    //char totoken_temp[64]={0};
     int isQuit = 0;
     while(isQuit == 0)
     {
@@ -224,7 +247,7 @@ void* client_thread(char **argv)
             perror("Connect ");
             exit(errno);
         }
-		g_sock = sockfd;
+        g_sock = sockfd;
         printf("connect to server port:%d...\n",dest.sin_port);
 
         sendhelo(sockfd,token);
@@ -268,7 +291,7 @@ void* client_thread(char **argv)
             {
                 if (FD_ISSET(0, &rfds))
                 {
-                	/*
+                    /*
                     bzero(buf, MAXBUF + 1);
                     fgets(buf, MAXBUF, stdin);
                     char filepath[500]= {0};
@@ -351,7 +374,7 @@ void* client_thread(char **argv)
                             int retx;
                             char* filecontent = readtofile(filepath,"",&retx);
                             memcpy(buff+sizeof(CLIENT_HEADER)+64*totokenLength+255,filecontent,retx);
-//							memcpy(sendbuffer+sizeof(SERVER_HEADER)+255,filecontent,ret);
+                    //							memcpy(sendbuffer+sizeof(SERVER_HEADER)+255,filecontent,ret);
                             free(filecontent);
                         }
                     }
@@ -413,45 +436,52 @@ void* client_thread(char **argv)
                 else if (FD_ISSET(sockfd, &rfds))
                 {
                     bzero(bufs, MAXBUF + 1);
+                    pthread_mutex_lock(&lock);
                     len = recv(sockfd, bufs, MAXBUF, 0);
+                    pthread_mutex_unlock(&lock);
                     //printf("recv data recv len:%d,SERVER_HEADER len:%d\n",len,sizeof(SERVER_HEADER));
                     printf("recv:\n");
-                    dump_data(bufs,len);
                     char* buf = bufs;
-                    
+                    dump_data(buf,len);
                     //SERVER_HEADER* header = malloc(sizeof(SERVER_HEADER));
                     //bzero(header,sizeof(SERVER_HEADER));
                     server_header_2_t header;
                     memset(&header,0,sizeof(server_header_2_t));
                     if (len > 0)
                     {
-                    	void* buff = parseServerHeader(buf,&header);
-                    	printf("the command %02X\n",header.command);
-                    	if(len>=sizeof(server_header_2_t)){
-	                    	//memcpy(&header,buf,sizeof(server_header_2_t));	                    	
-	                    	buf += sizeof(server_header_2_t);
-	                    	len -= sizeof(server_header_2_t);
-	                    	if(header.command == COMMAND_MESSAGE){
-	                    		char fromdrivceId[64]={0};
-	                    		char messageid[64]={0};
-	                    		char* message = NULL;
-	                    		int ret = parseServerMessage(sockfd,buff,
-											&header,fromdrivceId,messageid,&message,len,"/tmp");
-	                    		if(ret < 0){
-		                    		printf("has error\n");	
-		                    	}
-		                    	printf("%s,%s,%s",messageid,fromdrivceId,message);
-		                    	free(message);
-		                    	char* retbuf = createClientHeader(COMMAND_YES,MESSAGE_TYPE_NULL,(unsigned char)1);
-		                    	ret = send(sockfd,retbuf,sizeof(client_header_2_t),0);
-		                    	if(ret < 0){
-		                    		printf("has error\n");	
-		                    	}                					
-	                    	}
-	                    }else{
-                    		
-                    	}
-						/*
+                        void* buff = parseServerHeader(buf,&header);
+                        printf("the command %02X\n",header.command);
+                        if(len>=sizeof(server_header_2_t))
+                        {
+                            //memcpy(&header,buf,sizeof(server_header_2_t));
+                            buf += sizeof(server_header_2_t);
+                            len -= sizeof(server_header_2_t);
+                            if(header.command == COMMAND_MESSAGE)
+                            {
+                                char fromdrivceId[64]= {0};
+                                char messageid[64]= {0};
+                                char* message = NULL;
+                                int ret = parseServerMessage(sockfd,buff,
+                                                             &header,fromdrivceId,messageid,&message,len,"/tmp");
+                                if(ret < 0)
+                                {
+                                    printf("has error\n");
+                                }
+                                printf("%s,%s,%s",messageid,fromdrivceId,message);
+                                free(message);
+                                char* retbuf = createClientHeader(COMMAND_YES,MESSAGE_TYPE_NULL,(unsigned char)1);
+                                ret = send(sockfd,retbuf,sizeof(client_header_2_t),0);
+                                if(ret < 0)
+                                {
+                                    printf("has error\n");
+                                }
+                            }
+                        }
+                        else
+                        {
+
+                        }
+                        /*
                         if(len>=sizeof(SERVER_HEADER))
                         {
                             memcpy(header,buf,sizeof(SERVER_HEADER));
@@ -503,16 +533,16 @@ void* client_thread(char **argv)
                             printf("recv failed！errno:%d，error msg: '%s'\n", errno, strerror(errno));
                         else
                         {
-                        	printf("recv failed！errno:%d，error msg: '%s'\n", errno, strerror(errno));
+                            printf("recv failed！errno:%d，error msg: '%s'\n", errno, strerror(errno));
                             printf("other exit，terminal chat\n");
                         }
 
 
-                      //  free(header);
+                        //  free(header);
                         break;
                         //continue;
                     }
-                   // free(header);
+                    // free(header);
                 }
             }
         }
@@ -525,40 +555,62 @@ void* client_thread(char **argv)
     }
     return 0;
 }
-int main(int argc, char **argv){
-	
-	if (argc <= 3)
+/*
+int main(int argc,char** argv){
+	push_message_info_t info;
+	info.retrycount=0;
+	info.state=0;
+	info.messagetype=MESSAGE_TYPE_TXT;
+	strcpy(info.messageid , "hahah");
+	strcpy(info.to,"kuer");
+	strcpy(info.orgFileName , "");
+	strcpy(info.sendtime,"2015");
+	info.sendtime_l = 131;
+	strcpy(info.form,"test");
+	info.content = malloc(20);
+	strcpy(info.content,"111");
+	info.timeout = 100;	
+	int i =0;
+	for(i=0;i<10;i++)
+		createServerMessagereply(-1,1,&info,"");
+}
+*/
+int main(int argc, char **argv)
+{
+
+    if (argc <= 3)
     {
         printf("Usage: %s IP Port token",argv[0]);
         exit(0);
     }
     char token[64];
-     bzero(&token,strlen(token));     
-        strcpy(token,argv[3]);
-        char* tempArgv = malloc(strlen(argv[4]));
-        strcpy(tempArgv,argv[4]);
-        int totokenLength = splitcountx(argv[4],"_");
-        char** totoken_temp = NULL;
-        totoken_temp = malloc(totokenLength);
-        int i =0;
-        for(i=0; i<totokenLength; i++)
-        {
-            totoken_temp[i] = malloc(64);
-        }
-        totokenLength = split(totoken_temp,tempArgv,"_");
-        free(tempArgv);
-        
+    bzero(&token,strlen(token));
+    strcpy(token,argv[3]);
+    char* tempArgv = malloc(strlen(argv[4]));
+    strcpy(tempArgv,argv[4]);
+    int totokenLength = splitcountx(argv[4],"_");
+    char** totoken_temp = NULL;
+    totoken_temp = malloc(totokenLength);
+    int i =0;
+    for(i=0; i<totokenLength; i++)
+    {
+        totoken_temp[i] = malloc(64);
+    }
+    totokenLength = split(totoken_temp,tempArgv,"_");
+    free(tempArgv);
+	pthread_mutex_init(&lock,NULL);
     pthread_t thr_id;
     if (pthread_create(&thr_id, NULL, (void *) client_thread, argv) != 0)
-        {
-            printf("%spthread_create failed, errno%d, error%s\n", __FUNCTION__,
-                   errno, strerror(errno));
-            exit(1);
-        }
+    {
+        printf("%spthread_create failed, errno%d, error%s\n", __FUNCTION__,
+               errno, strerror(errno));
+        exit(1);
+    }
     //int ret=pthread_create(&thread_id,NULL,(void *) thread,&st);
     char buf[MAXBUF];
-   	while(1){
-		bzero(buf, MAXBUF + 1);
+    while(1)
+    {
+        bzero(buf, MAXBUF + 1);
         fgets(buf, MAXBUF, stdin);
         char filepath[500]= {0};
         int isfile = 0;
@@ -579,22 +631,23 @@ int main(int argc, char **argv){
             sscanf(buf,"%*s%s",filepath);
             printf("%s\n",filepath);
             isfile = 1;
-        }   
-		int len = -1;	
-		list_t *send_list = list_new();
-		int j=0;
-		 for(j=0; j<totokenLength; j++)
-		{
-			list_node_t *node = list_node_new(totoken_temp[j]);
+        }
+        int len = -1;
+        list_t *send_list = list_new();
+        int j=0;
+        for(j=0; j<totokenLength; j++)
+        {
+            list_node_t *node = list_node_new(totoken_temp[j]);
             list_rpush(send_list, node);
         }
-
+		pthread_mutex_lock(&lock);
         if(isfile == 0)
-  			len = createClientMessage(g_sock,MESSAGE_TYPE_TXT,1,0,buf,1,send_list);
+            len = createClientMessage(g_sock,MESSAGE_TYPE_TXT,1,0,buf,1,send_list);
         else
-       		len = createClientMessage(g_sock,MESSAGE_TYPE_FILE,1,0,buf,1,send_list);
-       	
-   		list_destroy(send_list);
+            len = createClientMessage(g_sock,MESSAGE_TYPE_FILE,1,0,buf,1,send_list);
+        recvReturn(g_sock);
+		pthread_mutex_unlock(&lock);
+        list_destroy(send_list);
         /*
         int length = -1;
         CLIENT_HEADER* header = malloc(sizeof(CLIENT_HEADER));
@@ -655,7 +708,7 @@ int main(int argc, char **argv){
                 int retx;
                 char* filecontent = readtofile(filepath,"",&retx);
                 memcpy(buff+sizeof(CLIENT_HEADER)+64*totokenLength+255,filecontent,retx);
-//							memcpy(sendbuffer+sizeof(SERVER_HEADER)+255,filecontent,ret);
+        //							memcpy(sendbuffer+sizeof(SERVER_HEADER)+255,filecontent,ret);
                 free(filecontent);
             }
         }
@@ -697,7 +750,7 @@ int main(int argc, char **argv){
         {
             len = send(g_sock, buff, length, 0);
         }
-		printf("send message！errno:%d，error msg: '%s'\n", errno, strerror(errno));
+        printf("send message！errno:%d，error msg: '%s'\n", errno, strerror(errno));
         //DUMP_DT(buff,len);
         free(header);
         free(buff);
@@ -713,7 +766,7 @@ int main(int argc, char **argv){
             break;
         }
 
- 	}
+    }
     pthread_join(thr_id,NULL);
 }
 

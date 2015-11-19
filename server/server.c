@@ -215,8 +215,8 @@ int main(int argc, char** argv)
     st2.timeout=system_config.delay_time_out;
 
     createRedisPool(system_config.redis_ip, system_config.redis_port,30);
-    int redisID= -1;
-    redisContext* redis = getRedis(&redisID);
+    //int redisID= -1;
+    //redisContext* redis = getRedis(&redisID);
     tpool_create(system_config.max_recv_thread_pool);
     pthread_mutex_init(&st.lock, NULL);
     pthread_mutex_lock(&st.lock);
@@ -300,9 +300,8 @@ int main(int argc, char** argv)
 
         }
         pthread_mutex_lock(&client_lock);
-        int timeout = 5;
+        int timeout = 1;
 #ifdef __EPOLL__
-
         nready = epoll_wait(epollfd, eventList, MAX_EVENTS, timeout);
 #endif
         pthread_mutex_unlock(&client_lock);
@@ -392,10 +391,10 @@ int main(int argc, char** argv)
         }
 
     }
-    pthread_mutex_init(&st.lock, NULL);
+    pthread_mutex_lock(&st.lock);
     st.isexit = 1;
     pthread_mutex_unlock(&st.lock);
-    pthread_mutex_init(&st2.lock, NULL);
+    pthread_mutex_lock(&st2.lock);
     st2.isexit = 1;
     pthread_mutex_unlock(&st2.lock);
     for(ij=0; ij<(system_config.push_thread_count+system_config.unin_thread_count); ij++)
@@ -426,7 +425,7 @@ void* sendMessage(void* args)
     send_info_t* sendinfo = (send_info_t*)args;
     if(sendinfo == NULL)
         return NULL;
-    pthread_mutex_lock(&sendinfo->client->opt_lock);
+    //pthread_mutex_lock(&sendinfo->client->opt_lock);
     int ret = send_pushlist_message(sendinfo->info,sendinfo->client);
     if(sendinfo->info)
     {
@@ -436,23 +435,23 @@ void* sendMessage(void* args)
     {
         saveInNoread(sendinfo->client->drivceId,sendinfo->info->messageid);
     }
-    pthread_mutex_unlock(&sendinfo->client->opt_lock);
+    //pthread_mutex_unlock(&sendinfo->client->opt_lock);
     return NULL;
 }
 void* send_helo_to_client_message(CLIENT* client)
 {
     char* token = client->drivceId;
-    char pushid[255]= {0};
+    char pushid[64]= {0};
     int ret = 0;
     do
     {
+    	memset(pushid,0,64);
         ret = getNextNoReadMessageId(client->drivceId,pushid);
         if(ret <= 0)
             break;
         push_message_info_t* messageinfo = NULL;
         getmessageinfo(pushid,&messageinfo);
         if(messageinfo == NULL)
-//				goto next_while;
             continue;
 
         int lockret = pthread_mutex_lock(&client->opt_lock);
@@ -469,27 +468,7 @@ void* send_helo_to_client_message(CLIENT* client)
     }
     while(ret>0);
 }
-/*
-void send_helo(int sockfd,CLIENT_HEADER	*header,CLIENT* client,char* deviceid)
-{
-    char time[255];
-    formattime(time,NULL);
-    struct sockaddr_in addr;
-    socklen_t slen;
-    getsockname(sockfd,(struct sockaddr*)&addr,&slen);
-    strcpy(client->drivceId,deviceid);
-    client_info_t* clientinfo = NULL;
-    newClient(client,system_config.serverid,inet_ntoa(addr.sin_addr),
-              client->drivceId,
-              1, 
-              &clientinfo);
-    freeClientInfo(clientinfo);
-    /////////////////////////////////////////////////////////////////
-    send_OK(client->fd,MESSAGE_HELO);
 
-    send_helo_to_client_message(client);
-}
-*/
 
 void close_socket(CLIENT* client)
 {
@@ -553,22 +532,7 @@ void close_socket(CLIENT* client)
  *
  *
  ***********************/
- /*
-void send_OK(int sockfd,int type)
-{
-    SERVER_HEADER* sheader = malloc(sizeof(SERVER_HEADER));
-    sheader->messageCode = MESSAGE_SUCCESS;
-    if(type != -1)
-        sheader->type = type;
-    else
-        sheader->type = S_OK;
-    sheader->messagetype = MESSAGE_TYPE_TXT;
-    sheader->totalLength = sizeof(SERVER_HEADER);
-    int len = send(sockfd, sheader, sizeof(SERVER_HEADER) , 0);
-    //Log("len=%d:%d ,errno:%d£¬error msg: '%s'\n",len,sizeof(SERVER_HEADER) , errno, strerror(errno));
 
-    free(sheader);
-}*/
 int new_connection(int slisten,//struct sockaddr_in* addr,
                    CLIENT* client,
                    int* maxfd,int epollfd)
@@ -638,7 +602,15 @@ void* read_thread_function(void* client_t)
     int reads = 1;
     int epollfd = g_epollfd;
     if((n = recv(sockfd,buf,MAXBUF,0)) > 0)
-    {
+    //while(1)
+	{
+		/*
+		n = recv(sockfd,buf,MAXBUF,0);
+		if(n == -1 && errno != EAGAIN)
+			goto recv_error_close_client;
+		if(n == 0)
+			goto recv_error_close_client;
+	    */
         //TODO Judging communication protocol, custom,websocket,xmpp or SSL
         //if (strlen(buf) < 14) {
         //  it is may SSL
@@ -684,13 +656,15 @@ void* read_thread_function(void* client_t)
                       header.clienttype,
                       &clientinfo);
             freeClientInfo(clientinfo);
+            printf(">> welcome %s system is:%d\n",client->drivceId,client->clienttype);
             void* sheader = createServerHelo(system_config.serverid,0,0,0);
             ret = send(sockfd,sheader,sizeof(server_header_2_t),0);
             free(sheader);
             if(ret <= 0)
                 goto recv_error_close_client;
             pthread_mutex_unlock(&client->opt_lock);
-            send_helo_to_client_message(client);
+            if(client->drivceId != NULL && strlen(client->drivceId) <= 0)
+	            send_helo_to_client_message(client);
         }
         else if(header.command == COMMAND_BYE)
         {
@@ -711,6 +685,9 @@ void* read_thread_function(void* client_t)
         {
             //... 
         }
+        else if(header.command == COMMAND_YES){
+        	//this command is a call back do nothing....
+        }
         else if(header.command == COMMAND_SERVER)
         {
             //...
@@ -727,6 +704,7 @@ recv_error_close_client:
             return NULL;
         }
     }
+    
     else
     {
         pthread_mutex_unlock(&client->opt_lock);
@@ -734,6 +712,7 @@ recv_error_close_client:
         removeClient(client);
         close_socket(client);
     }
+    
     pthread_mutex_unlock(&client->opt_lock);
     return NULL;
 }
@@ -960,6 +939,7 @@ void* unionPushList(void* stx)
         char messageid[255] = {0};
         char drivceid[255] = {0};
         int ret = 0;
+        /*
         do
         {
             ret = getDelyMessage(messageid);//TODO this method has bug!
@@ -984,6 +964,7 @@ void* unionPushList(void* stx)
             }
         }
         while(ret > 0);
+        */
         /*
         redisReply* reply = (redisReply*)redisCommand(redis, "RPOPLPUSH dely_pushlist pushlist");
         while(reply->str != NULL)
