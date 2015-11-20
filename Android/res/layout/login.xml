@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="utf-8"?>
+<TableLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/loginMain"
+    android:layout_width="fill_parent"
+    android:layout_height="fill_parent"
+    android:background="#efefef"
+    android:paddingTop="100dp"
+    android:stretchColumns="1" >
+
+    <TableRow>
+
+        <TextView
+            android:gravity="right"
+            android:padding="8dip"
+            android:text="@string/view_name"
+            android:textColor="#000000"
+            android:textSize="15sp"
+            android:textStyle="bold" />
+
+        <EditText
+            android:id="@+id/name"
+            android:padding="3dip"
+            android:scrollHorizontally="true" />
+    </TableRow>
+
+    <TableRow android:gravity="center" >
+
+        <LinearLayout
+            android:layout_span="2"
+            android:gravity="center"
+            android:padding="8dip" >
+
+            <Button
+                android:id="@+id/cancel"
+                android:layout_width="50dp"
+                android:layout_height="fill_parent"
+                android:layout_marginRight="5dp"
+                android:layout_weight="1"
+                android:background="#97C024"
+                android:gravity="center"
+                android:onClick="endLogin"
+                android:text="@string/btn_cancel"
+                android:textColor="#ffffff"
+                android:textSize="15sp" />
+
+            <Button
+                android:id="@+id/login"
+                android:layout_width="wrap_content"
+                android:layout_height="fill_parent"
+                android:layout_weight="1"
+                android:background="#BF071B"
+                android:gravity="center"
+                android:onClick="startLogin"
+                android:text="@string/btn_login"
+                android:textColor="#ffffff"
+                android:textSize="15sp" />
+        </LinearLayout>
+    </TableRow>
+
+</TableLayout>
