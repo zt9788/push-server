@@ -18,11 +18,15 @@
 
 #include <semaphore.h>
 #include <fcntl.h>
+#ifdef __EPOLL__
+#include <sys/epoll.h>
+#endif
+#include "log.h"
 
 #undef send
 #undef recv
 
-int addepollevent(int fd,void* ptr)
+int addepollevent(int fd,void* ptr,int epollfd)
 {
 #ifdef __EPOLL__
     struct epoll_event event;
@@ -31,7 +35,7 @@ int addepollevent(int fd,void* ptr)
     else
         event.data.ptr = ptr;
     event.events =  EPOLLIN|EPOLLET;  //EPOLLET
-    if(epoll_ctl(g_epollfd, EPOLL_CTL_ADD, fd, &event) < 0)
+    if(epoll_ctl(epollfd, EPOLL_CTL_ADD, fd, &event) < 0)
     {
         Log("epoll add fail : fd = %d\n", fd);
         return -1;
@@ -39,7 +43,7 @@ int addepollevent(int fd,void* ptr)
 #endif
     return 0;
 }
-int modepollevent(int fd,void* ptr)
+int modepollevent(int fd,void* ptr,int epollfd)
 {
 #ifdef __EPOLL__
     struct epoll_event event;
@@ -47,12 +51,12 @@ int modepollevent(int fd,void* ptr)
         event.data.fd = fd;
     else
         event.data.ptr = ptr;
-    if(event.events&EPOLOUT)
+    if(event.events&EPOLLOUT)
     	event.events =  event.events|EPOLLIN;//EPOLLIN|EPOLLET;  //EPOLLET
    	else
-   		event.events =  event.events|EPOLLIN;//EPOLLIN|EPOLLET;  //EPOLLET
+   		event.events =  event.events|EPOLLOUT;//EPOLLIN|EPOLLET;  //EPOLLET
    		
-    if(epoll_ctl(g_epollfd, EPOLL_CTL_MOD, fd, &event) < 0)
+    if(epoll_ctl(epollfd, EPOLL_CTL_MOD, fd, &event) < 0)
     {
         Log("epoll add fail : fd = %d\n", fd);
         return -1;

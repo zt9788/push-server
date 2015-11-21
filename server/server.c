@@ -263,7 +263,7 @@ int main(int argc, char** argv)
     //1. epoll 初始化
     int epollfd = epoll_create(MAX_EVENTS);
     g_epollfd = epollfd;
-    if(addepollevent(slisten,NULL)<0)
+    if(addepollevent(slisten,NULL,g_epollfd)<0)
     {
         Log("epoll add fail : fd = %d\n", slisten);
         return -1;
@@ -272,7 +272,7 @@ int main(int argc, char** argv)
     //事件数组
     if(pid != 0)
     {
-        addepollevent(0,NULL);
+        //addepollevent(0,NULL,g_epollfd);
     }
 
 #endif
@@ -577,7 +577,7 @@ int new_connection(int slisten,//struct sockaddr_in* addr,
 	        Log("too many connections");
 	    pthread_mutex_lock(&client_lock);
 #ifdef __EPOLL__
-	    addepollevent(connectfd,&client[i]);
+	    addepollevent(connectfd,&client[i],g_epollfd);
 #endif
 	    if(connectfd > *maxfd)
 	        *maxfd = connectfd;
@@ -692,6 +692,10 @@ void* read_thread_function(void* client_t)
             	parseClientUserReg(client->fd,bufs,system_config.serverid,&sucess);
             	//int isSuccess = username==NULL?0:1;
             	//createServerUserReg(client->fd,system_config.serverid,isSuccess)
+            }
+            else if(header.messagetype == MESSAGE_TYPE_USER_LOGIN){
+            	int sucess;
+            	parseClientUserLogin(client->fd,bufs,system_config.serverid,client->drivceId,&sucess);
             }
         }
         else if(header.command == COMMAND_YES){

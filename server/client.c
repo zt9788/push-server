@@ -15,6 +15,7 @@
 #include "sc.h"
 #include "parse_command.h"
 #include "list.h"
+#include "extended_protocol.h"
 
 //#define MAXBUF 1024
 #define WIN32
@@ -359,6 +360,7 @@ int main(int argc, char **argv)
     }
     //int ret=pthread_create(&thread_id,NULL,(void *) thread,&st);
     char buf[MAXBUF];
+    char username[255]={0};
     while(1)
     {
         bzero(buf, MAXBUF + 1);
@@ -382,6 +384,24 @@ int main(int argc, char **argv)
             sscanf(buf,"%*s%s",filepath);
             printf("%s\n",filepath);
             isfile = 1;
+        }
+        if(!strncasecmp(buf,"reg",3)){
+        	
+        	sscanf(buf,"%*s%s",username);
+        	printf("username");
+			pthread_mutex_lock(&lock);
+			createClientUserReg(g_sock,1,username);
+			__DEBUG("\n");
+			recvReturn(g_sock);
+			pthread_mutex_unlock(&lock);
+        	continue;
+        }
+        if(!strncasecmp(buf,"login",5)){
+			pthread_mutex_lock(&lock);
+			createClientUserLogin(g_sock,1,username);
+			recvReturn(g_sock);
+			pthread_mutex_unlock(&lock);
+        	continue;
         }
         int len = -1;
         list_t *send_list = list_new();

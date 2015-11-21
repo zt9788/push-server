@@ -218,8 +218,6 @@ typedef struct CLIENT {
 
 
 
-#define MAX_CONNECTION_LENGTH 102400
-#define MAX_EVENTS 500  
-#define REVLEN 1024
+
 
 #endif /* !SC_H */

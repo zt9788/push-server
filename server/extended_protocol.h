@@ -37,4 +37,9 @@ int createClientUserReg(int sock,int clienttype,char* username);
 char* parseClientUserReg(int sock,void* buf,int serverid,int* outResult);
 char* parseServerUserReg(int sock,void* buf,char* outResult);
 
+int* parseServerUserLogin(int sock,void* buf,int* outResult);
+int createServerUserLogin(int sock,int serverid,int isSuccess,char* username);
+char* parseClientUserLogin(int sock,void* buf,int serverid,char* drivceId,int* outResult);
+int createClientUserLogin(int sock,int clienttype,char* username);
+
 #endif /* !EXTENDED_COMMADN_H */
