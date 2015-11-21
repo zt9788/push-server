@@ -40,6 +40,7 @@ SOFTWARE.
 #include "leak_detector_c.h"
 #endif
 #include "socket_plush.h"
+#include "extended_protocol.h"
 
 #ifdef DEBUG
 //#undef Log
@@ -119,23 +120,6 @@ void* check_time_out_thread(void* args){
 		}
 		sleep(1);
 	}
-}
-int addepollevent(int fd,void* ptr)
-{
-#ifdef __EPOLL__
-    struct epoll_event event;
-    if(ptr == NULL)
-        event.data.fd = fd;
-    else
-        event.data.ptr = ptr;
-    event.events =  EPOLLIN|EPOLLET;  //EPOLLET
-    if(epoll_ctl(g_epollfd, EPOLL_CTL_ADD, fd, &event) < 0)
-    {
-        Log("epoll add fail : fd = %d\n", fd);
-        return -1;
-    }
-#endif
-    return 0;
 }
 
 
@@ -438,6 +422,20 @@ void* sendMessage(void* args)
     //pthread_mutex_unlock(&sendinfo->client->opt_lock);
     return NULL;
 }
+client_header_2_t* readReturnMessage(CLIENT* client){
+	char buf[MAXBUF];
+	int ret = recv(client->fd,buf,MAXBUF,0);
+	client_header_2_t* header = malloc(sizeof(client_header_2_t));
+	void* bufs = parseClientHeader((void*)buf,header);
+	if(header->command == COMMAND_YES){
+		return header;
+	}
+	else{
+		free(header);
+		return NULL;	
+	}
+	
+}
 void* send_helo_to_client_message(CLIENT* client)
 {
     char* token = client->drivceId;
@@ -601,9 +599,12 @@ void* read_thread_function(void* client_t)
     memset(buf,0,MAXBUF + 1);
     int reads = 1;
     int epollfd = g_epollfd;
+    time_t t;
+    time(t);
     if((n = recv(sockfd,buf,MAXBUF,0)) > 0)
     //while(1)
 	{
+		client->timeout = t;
 		/*
 		n = recv(sockfd,buf,MAXBUF,0);
 		if(n == -1 && errno != EAGAIN)
@@ -629,8 +630,10 @@ void* read_thread_function(void* client_t)
         client_header_2_t header;
         memset(&header,0,sizeof(client_header_2_t));
         void* bufs = parseClientHeader((void*)buf,&header);
-        //if(header == NULL)
-        //	goto recv_error_close_client;
+        //TODO still have data in buffer ,you need to read it in a while
+        if(n>header.total){
+        	
+        }
         n -= sizeof(client_header_2_t);
         if(header.command == COMMAND_PING)
         {
@@ -683,7 +686,13 @@ void* read_thread_function(void* client_t)
         }
         else if(header.command == COMMAND_OTHER_MESSAGE)
         {
-            //... 
+            if(header.messagetype == MESSAGE_TYPE_USER_REG){
+            	//char username[64]={0};
+            	int sucess;
+            	parseClientUserReg(client->fd,bufs,system_config.serverid,&sucess);
+            	//int isSuccess = username==NULL?0:1;
+            	//createServerUserReg(client->fd,system_config.serverid,isSuccess)
+            }
         }
         else if(header.command == COMMAND_YES){
         	//this command is a call back do nothing....
@@ -800,132 +809,22 @@ int send_pushlist_message(
 {
 	int ret = 0;
 	ret = createServerMessagereply(client->fd,system_config.serverid,messageinfo,system_config.tempPath);
-	if(ret < 0)
+	if(ret <= 0)
 		return 0;
-	
-	/*    
-    int sendlen = sizeof(SERVER_HEADER);//+content!=NULL?strlen(content):0;
-    SERVER_HEADER* sheader = malloc(sizeof(SERVER_HEADER));
-    sheader->messageCode = MESSAGE_SUCCESS;
-    sheader->type = MESSAGE;
-    sheader->messagetype = messageinfo->messagetype;
-
-    if(messageinfo->content!=NULL && messageinfo->messagetype == MESSAGE_TYPE_TXT)
-    {
-        sendlen += strlen(messageinfo->content);
-        sheader->contentLength = strlen(messageinfo->content);
-    }
-    else if( messageinfo->content!=NULL && messageinfo->messagetype != MESSAGE_TYPE_TXT)
-    {
-        long filesize = get_file_size(messageinfo->content);
-        sendlen += 255;
-        sendlen += filesize;
-        sheader->contentLength = (int)filesize;
-    }
-    else if(messageinfo->content == NULL)
-        sheader->contentLength = 0;
-    sheader->totalLength = sendlen;
-    //TODO
-    void* sendbuffer = malloc(sendlen);
-    memset(sendbuffer,0,sendlen);
-    memcpy(sendbuffer,sheader,sizeof(SERVER_HEADER));
-    if(messageinfo->content != NULL)
-    {
-        if(messageinfo->messagetype != MESSAGE_TYPE_TXT)
-        {
-            memcpy(sendbuffer+sizeof(SERVER_HEADER),messageinfo->orgFileName,255);
-            int ret;
-            unsigned char* filecontent = readtofile(system_config.tempPath,messageinfo->content,&ret);
-            memcpy(sendbuffer+sizeof(SERVER_HEADER)+255,filecontent,ret);
-
-            free(filecontent);
-        }
-        else
-        {
-            memcpy(sendbuffer+sizeof(SERVER_HEADER),messageinfo->content,strlen(messageinfo->content));
-        }
-
-    }
-    int len = -1;
-    if(sendlen>MAXBUF)
-    {
-        int sumlen = 0;
-        int i = 0;
-        while(sumlen < sendlen)
-        {
-            int retsend = 0;
-            if((sendlen-sumlen)>MAXBUF)
-                retsend = send(client->fd, sendbuffer+sumlen,MAXBUF,0);
-            else
-                retsend = send(client->fd, sendbuffer+sumlen,(sendlen-sumlen),0);
-            if(retsend<0)
-            {
-                goto send_error;
-            }
-            sumlen += retsend;
-            Log("send data length=%d\n",sumlen);
-            i++;
-        }
-        len = sumlen;
-    }
-    else
-    {
-        len = send(client->fd, sendbuffer, sendlen, 0);
-    }
-    Log("Send message:%s to %s len:%d,errno:%d,error msg: '%s'\n",messageinfo->content,client->drivceId,len, errno, strerror(errno));
-    free(sendbuffer);
-    sendbuffer = NULL;
-    free(sheader);
-    sheader = NULL;
-    //TODO
-    if(len < 0)
-    {
-send_error:
-        removeClient(client);
-        Log("send error and say goodbye '%s'\n", inet_ntoa(client->addr.sin_addr));
-        //close_socket(client->fd,g_clients,client->clientId,&allset,g_epollfd);
-        close_socket(client,&allset);
-        return 0;
-    }
-    */
     //wait for client return
-    
-    char tempbuf[MAXBUF];
-    int len = recv(client->fd, tempbuf, MAXBUF, 0);
-    /*
-    if(len>0)
+    client_header_2_t* cheader = readReturnMessage(client);
+    if(cheader != NULL)
     {
-        CLIENT_HEADER* cheader = malloc(sizeof(CLIENT_HEADER));
-        memset(cheader,0,sizeof(CLIENT_HEADER));
-        memcpy(cheader,tempbuf,sizeof(CLIENT_HEADER));
-        if(cheader->type == S_OK)
-        {
-            ret = 1;
-            messageIsSendOK2( messageinfo,system_config.serverid);
-        }
-
-        free(cheader);
-    }
-    else
-    {
-        ret = 0;
-        return ret;
-    }
-    */
-    if(len>0)
-    {
-	    client_header_2_t cheader;
-	    parseClientHeader(tempbuf,&cheader);
-	    if(cheader.command == COMMAND_YES){
+	    if(cheader->command == COMMAND_YES){
 	    	messageIsSendOK2( messageinfo,system_config.serverid);
 	    }
+	    free(cheader);
 	    return 1;
     }
 	else
     {
-        ret = 0;
-        return ret;
-    }
+        ret = 0;       
+    }    
     return ret;
 }
 //

@@ -33,49 +33,13 @@
 #define DUMP_DT(buf,len) dump_data(buf,len)
 #endif
 #define __DEBUG(format, ...) printf("FILE: "__FILE__", LINE: %d: "format"/n", __LINE__, ##__VA_ARGS__)
-/*
-int splitcount(char* str, const char* spl)
-{
-    int n = 0;
-    char *result = NULL;
-    result = strtok(str, spl);
-    n = 0;
-    while( result != NULL )
-    {
-        n++;
-        result = strtok(NULL, spl);
-    }
-    return n;
-}
-int split(char** dst, char* str, const char* spl)
-{
-    int n = 0;
-    char *result = NULL;
-    if(dst == NULL)
-    {
-        return 0;
-    }
-    result = strtok(str, spl);
-    n = 0;
-    while( result != NULL )
-    {
-        strcpy(dst[n++], result);
-        result = strtok(NULL, spl);
-    }
-    return n;
-}
-*/
+
 typedef struct pushstruct
 {
-//	redisContext* redis;
-//	int sockid;
     CLIENT* client;
     pthread_mutex_t lock;
     int isexit;
-//	char redisip[20];
-//	int redisport;
     int timeout;
-    //struct sockaddr_in addr;
 } pushstruct;
 typedef struct thread_struct
 {
@@ -86,6 +50,7 @@ typedef struct thread_struct
 } thread_struct;
 
 pthread_mutex_t lock;
+int g_sock;
 void recvReturn(int sockfd)
 {
     char buf[MAXBUF];
@@ -108,23 +73,6 @@ void sendhelo(int sockfd,char* token)
     printf("helo\n");
     dump_data(buff,length);
     int len = send(sockfd, buff, length, 0);
-    /*
-    CLIENT_HEADER* header = malloc(sizeof(CLIENT_HEADER)+strlen(token));
-    header->contentLength = 0;
-    //header->tokenLength = strlen(token);
-    strcpy(header->clienttoken,token);
-    header->type = MESSAGE_HELO;
-    header->messagetype = MESSAGE_TYPE_TXT;
-    int length = sizeof(CLIENT_HEADER);//+strlen(token);
-    header->totalLength = length;
-    void* buff = malloc(length);
-    bzero(buff,length);
-    memcpy(buff,header,sizeof(CLIENT_HEADER));
-    //memcpy(buff+sizeof(CLIENT_HEADER),token,strlen(token));
-    int len = send(sockfd, buff, length, 0);
-    printf("send helo data:\n");
-    DUMP_DT(buff,len);
-    free(header);*/
     free(buff);
     if (len > 0)
     {
@@ -141,27 +89,12 @@ void sendhelo(int sockfd,char* token)
 
 void sendping(int sockfd,char* token)
 {
+	
 	pthread_mutex_lock(&lock);
     void* buff = createClientPing(1);
     int len = send(sockfd, buff, sizeof(client_header_2_t), 0);
     printf("ping\n");
     dump_data(buff,len);
-    /*
-    CLIENT_HEADER* header = malloc(sizeof(CLIENT_HEADER));
-    header->contentLength = 0;
-    //header->tokenLength = strlen(token);
-    strcpy(header->clienttoken,token);
-    header->type = MESSAGE_PING;
-    header->messagetype = MESSAGE_TYPE_TXT;
-    int length = sizeof(CLIENT_HEADER);
-    header->totalLength = length;
-    void* buff = malloc(length);
-    bzero(buff,length);
-    memcpy(buff,header,sizeof(CLIENT_HEADER));
-    int len = send(sockfd, buff, length, 0);
-    printf("send ping data send len=%d,size=%d:\n",len,sizeof(CLIENT_HEADER));
-    DUMP_DT(buff,len);
-    free(header);*/
     free(buff);
     if (len > 0)
         Log("msg:%s send successful，totalbytes: %d！\n", buff, len);
@@ -193,8 +126,6 @@ void thread(thread_struct* thread_s)
 
     }
 }
-int g_sock;
-
 
 void* client_thread(char **argv)
 {
@@ -291,154 +222,16 @@ void* client_thread(char **argv)
             {
                 if (FD_ISSET(0, &rfds))
                 {
-                    /*
-                    bzero(buf, MAXBUF + 1);
-                    fgets(buf, MAXBUF, stdin);
-                    char filepath[500]= {0};
-                    int isfile = 0;
-                    if (!strncasecmp(buf, "quit", 4))
-                    {
 
-                        printf("request terminal chat！\n");
-                        isQuit = 1;
-                        break;
-                    }
-                    if (!strncasecmp(buf, "exit", 4))
-                    {
-                        printf("request terminal chat by exit！\n");
-                        break;
-                    }
-                    if(!strncasecmp(buf,"file",4))
-                    {
-                        //TODO 获得文件
-                        sscanf(buf,"%*s%s",filepath);
-                        printf("%s\n",filepath);
-                        isfile = 1;
-                    }
-                    int length = -1;
-                    CLIENT_HEADER* header = malloc(sizeof(CLIENT_HEADER));
-                    header->contentLength = strlen(buf);
-
-                    header->type = MESSAGE;
-                    if(isfile == 0)
-                        header->messagetype = MESSAGE_TYPE_TXT;
-                    else
-                    {
-                        header->messagetype = MESSAGE_TYPE_FILE;
-                    }
-                    strcpy(header->clienttoken,token);
-                    header->sendto = totokenLength;
-                    if(header->sendto > 0)
-                    {
-                        length = sizeof(CLIENT_HEADER)+strlen(buf)+64*header->sendto;//+strlen(token)
-                    }
-                    else
-                    {
-                        length = sizeof(CLIENT_HEADER)+strlen(buf);//+strlen(token)
-                    }
-                    if(isfile == 1)
-                    {
-                        length += 255;
-                        length -= strlen(buf);
-                        length += get_file_size(filepath);
-                        header->contentLength = get_file_size(filepath);
-                    }
-                    header->totalLength = length;
-                    Log("%d,%d,%d,%d\n",header->type,header->contentLength,strlen(buf),length);
-
-                    void* buff = malloc(length);
-                    bzero(buff,length);
-                    memcpy(buff,header,sizeof(CLIENT_HEADER));
-                    if(isfile == 1)
-                        memcpy(buff+sizeof(CLIENT_HEADER),filepath,255);
-
-                    if(header->sendto > 0)
-                    {
-                        //TODO add sendto
-                        int j = 0;
-                        for(j=0; j<totokenLength; j++)
-                        {
-                            char tochar[64]= {0}; // = "bbbbbb";
-                            strcpy(tochar,totoken_temp[j]);
-                            if(isfile == 0)
-                                memcpy(buff+sizeof(CLIENT_HEADER)+64*j,tochar,64);
-                            else
-                                memcpy(buff+sizeof(CLIENT_HEADER)+64*j+255,tochar,64);
-                        }
-                        //TODO add content message
-                        if(isfile == 0)
-                            memcpy(buff+sizeof(CLIENT_HEADER)+64*totokenLength,buf,strlen(buf));
-                        else
-                        {
-                            //memcpy(buff+sizeof(CLIENT_HEADER)+64*totokenLength+255,buf,strlen(buf));
-                            int retx;
-                            char* filecontent = readtofile(filepath,"",&retx);
-                            memcpy(buff+sizeof(CLIENT_HEADER)+64*totokenLength+255,filecontent,retx);
-                    //							memcpy(sendbuffer+sizeof(SERVER_HEADER)+255,filecontent,ret);
-                            free(filecontent);
-                        }
-                    }
-                    else
-                    {
-                        if(isfile == 1)
-                        {
-                            //memcpy(buff+sizeof(CLIENT_HEADER)+64*totokenLength+255,buf,strlen(buf));
-                            int retx;
-                            char* filecontent = readtofile(filepath,"",&retx);
-                            memcpy(buff+sizeof(CLIENT_HEADER)+255,filecontent,retx);
-                            free(filecontent);
-                        }
-                        else
-                            memcpy(buff+sizeof(CLIENT_HEADER),buf,strlen(buf));
-                    }
-                    //DUMP_DT(buff,length);
-                    len = 0;
-                    if(length>MAXBUF)
-                    {
-                        while(1)
-                        {
-                            int tempRet = 0;
-                            if((length-len)>MAXBUF)
-                            {
-                                tempRet = send(sockfd, buff+len, MAXBUF, 0);
-                            }
-                            else
-                            {
-                                tempRet = send(sockfd, buff+len, length-len, 0);
-                                len += tempRet;
-                                break;
-                            }
-                            len += tempRet;
-                        }
-
-                    }
-                    else
-                    {
-                        len = send(sockfd, buff, length, 0);
-                    }
-
-                    printf("send message data:\n");
-                    //DUMP_DT(buff,len);
-                    free(header);
-                    free(buff);
-                    if (len > 0)
-                    {
-                        Log("msg:%s send successful，totalbytes: %d,%d！\n", buf, len,length);
-                        printf("msg:%s send successful，totalbytes: %d,%d！\n", buf, len,length);
-                    }
-                    else
-                    {
-                        printf("msg:'%s  failed!\n", buf);
-                        break;
-                    }
-                    */
                 }
                 else if (FD_ISSET(sockfd, &rfds))
                 {
+                	
                     bzero(bufs, MAXBUF + 1);
-                    pthread_mutex_lock(&lock);
-                    len = recv(sockfd, bufs, MAXBUF, 0);
-                    pthread_mutex_unlock(&lock);
+                    int lockret = pthread_mutex_trylock(&lock);
+                    if(lockret == EBUSY)
+                    	continue;
+                    len = recv(sockfd, bufs, MAXBUF, 0);                    
                     //printf("recv data recv len:%d,SERVER_HEADER len:%d\n",len,sizeof(SERVER_HEADER));
                     printf("recv:\n");
                     char* buf = bufs;
@@ -479,53 +272,9 @@ void* client_thread(char **argv)
                         }
                         else
                         {
-
+							Log("total:%s %d \n",__LINE__,len);
                         }
-                        /*
-                        if(len>=sizeof(SERVER_HEADER))
-                        {
-                            memcpy(header,buf,sizeof(SERVER_HEADER));
-                            if(header->messageCode == MESSAGE_SUCCESS)
-                            {
-                                if(header->type == MESSAGE)
-                                {
-                                    char filename[255]= {0};
-                                    void* buffers = malloc(header->contentLength);
-                                    if(header->messagetype == MESSAGE_TYPE_TXT)
-                                    {
-                                        memcpy(buffers,buf+sizeof(SERVER_HEADER),header->contentLength);
-                                        char* tempBuffers = (char*)buffers;
-                                        tempBuffers[header->contentLength] = '\0';
-                                        printf("Recv message is: %s\n",buffers);
-                                    }
-                                    else
-                                    {
-                                        memcpy(filename,buf+sizeof(SERVER_HEADER),255);
-                                        memcpy(buffers,buf+sizeof(SERVER_HEADER)+255,header->contentLength);
-                                        writetofile("/tmp",filename,buffers,header->contentLength);
-                                        printf("Recv message is: %s\n",filename);
-                                    }
-                                    free(buffers);
-                                    //return OK
-                                    CLIENT_HEADER* cheader = malloc(sizeof(CLIENT_HEADER));
-                                    bzero(cheader,sizeof(CLIENT_HEADER));
-                                    cheader->totalLength= sizeof(CLIENT_HEADER);
-                                    cheader->type = S_OK;
-                                    cheader->messagetype = MESSAGE_TYPE_TXT;
-                                    len = send(sockfd,cheader,sizeof(CLIENT_HEADER),0);
-                                    printf("send cheader data:\n");
-                                    DUMP_DT(cheader,sizeof(CLIENT_HEADER));
-                                    free(cheader);
-
-                                }
-                                else
-                                {
-
-                                }
-                            }
-                        }
-                        */
-                        Log("recv:'%s, total: %d,%d \n", buf, len,header->messageCode);
+                        //Log("recv:'%s, total: %d,%d \n", buf, len,header->messageCode);
                     }
                     else
                     {
@@ -543,6 +292,8 @@ void* client_thread(char **argv)
                         //continue;
                     }
                     // free(header);
+                    
+                    pthread_mutex_unlock(&lock);
                 }
             }
         }
@@ -640,125 +391,20 @@ int main(int argc, char **argv)
             list_node_t *node = list_node_new(totoken_temp[j]);
             list_rpush(send_list, node);
         }
-		pthread_mutex_lock(&lock);
+        int trylock = pthread_mutex_trylock(&lock);
+        if(trylock == EBUSY){
+        	pthread_mutex_lock(&lock);
+        }			
         if(isfile == 0)
             len = createClientMessage(g_sock,MESSAGE_TYPE_TXT,1,0,buf,1,send_list);
         else
-            len = createClientMessage(g_sock,MESSAGE_TYPE_FILE,1,0,buf,1,send_list);
+            len = createClientMessage(g_sock,MESSAGE_TYPE_FILE,1,0,filepath,1,send_list);
         recvReturn(g_sock);
 		pthread_mutex_unlock(&lock);
         list_destroy(send_list);
-        /*
-        int length = -1;
-        CLIENT_HEADER* header = malloc(sizeof(CLIENT_HEADER));
-        header->contentLength = strlen(buf);
-
-        header->type = MESSAGE;
-        if(isfile == 0)
-            header->messagetype = MESSAGE_TYPE_TXT;
-        else
-        {
-            header->messagetype = MESSAGE_TYPE_FILE;
-        }
-        strcpy(header->clienttoken,token);
-        header->sendto = totokenLength;
-        if(header->sendto > 0)
-        {
-            length = sizeof(CLIENT_HEADER)+strlen(buf)+64*header->sendto;//+strlen(token)
-        }
-        else
-        {
-            length = sizeof(CLIENT_HEADER)+strlen(buf);//+strlen(token)
-        }
-        if(isfile == 1)
-        {
-            length += 255;
-            length -= strlen(buf);
-            length += get_file_size(filepath);
-            header->contentLength = get_file_size(filepath);
-        }
-        header->totalLength = length;
-        Log("%d,%d,%d,%d\n",header->type,header->contentLength,strlen(buf),length);
-
-        void* buff = malloc(length);
-        bzero(buff,length);
-        memcpy(buff,header,sizeof(CLIENT_HEADER));
-        if(isfile == 1)
-            memcpy(buff+sizeof(CLIENT_HEADER),filepath,255);
-
-        if(header->sendto > 0)
-        {
-            //TODO add sendto
-            int j = 0;
-            for(j=0; j<totokenLength; j++)
-            {
-                char tochar[64]= {0}; // = "bbbbbb";
-                strcpy(tochar,totoken_temp[j]);
-                if(isfile == 0)
-                    memcpy(buff+sizeof(CLIENT_HEADER)+64*j,tochar,64);
-                else
-                    memcpy(buff+sizeof(CLIENT_HEADER)+64*j+255,tochar,64);
-            }
-            //TODO add content message
-            if(isfile == 0)
-                memcpy(buff+sizeof(CLIENT_HEADER)+64*totokenLength,buf,strlen(buf));
-            else
-            {
-                //memcpy(buff+sizeof(CLIENT_HEADER)+64*totokenLength+255,buf,strlen(buf));
-                int retx;
-                char* filecontent = readtofile(filepath,"",&retx);
-                memcpy(buff+sizeof(CLIENT_HEADER)+64*totokenLength+255,filecontent,retx);
-        //							memcpy(sendbuffer+sizeof(SERVER_HEADER)+255,filecontent,ret);
-                free(filecontent);
-            }
-        }
-        else
-        {
-            if(isfile == 1)
-            {
-                //memcpy(buff+sizeof(CLIENT_HEADER)+64*totokenLength+255,buf,strlen(buf));
-                int retx;
-                char* filecontent = readtofile(filepath,"",&retx);
-                memcpy(buff+sizeof(CLIENT_HEADER)+255,filecontent,retx);
-                free(filecontent);
-            }
-            else
-                memcpy(buff+sizeof(CLIENT_HEADER),buf,strlen(buf));
-        }
-        //DUMP_DT(buff,length);
-        int len = 0;
-        if(length>MAXBUF)
-        {
-            while(1)
-            {
-                int tempRet = 0;
-                if((length-len)>MAXBUF)
-                {
-                    tempRet = send(g_sock, buff+len, MAXBUF, 0);
-                }
-                else
-                {
-                    tempRet = send(g_sock, buff+len, length-len, 0);
-                    len += tempRet;
-                    break;
-                }
-                len += tempRet;
-            }
-
-        }
-        else
-        {
-            len = send(g_sock, buff, length, 0);
-        }
-        printf("send message！errno:%d，error msg: '%s'\n", errno, strerror(errno));
-        //DUMP_DT(buff,len);
-        free(header);
-        free(buff);
-        */
         if (len > 0)
         {
             Log("msg:%s send successful，totalbytes: %d,%d！\n", buf, len,length);
-            //printf("msg:%s send successful，totalbytes: %d,%d！\n", buf, len,length);
         }
         else
         {

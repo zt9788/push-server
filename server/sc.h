@@ -22,6 +22,7 @@ SOFTWARE.
 #ifndef SC_H
 #define SC_H
 #include <netinet/in.h>
+#include "list.h"
 
 //message content type
 /*
@@ -46,6 +47,15 @@ SOFTWARE.
 #define MESSAGE_TYPE_GET_MESSAGE_LIST 0xF7
 #define MESSAGE_TYPE_GET_MESSAGE 0xF8
 
+
+#define MESSAGE_TYPE_USER_REG 0xB1
+#define MESSAGE_TYPE_USER_LOGIN 0xB2
+#define MESSAGE_TYPE_USER_LOGOUT 0xB3
+#define MESSAGE_TYPE_USER_FIND_USERNAME 0xB4
+#define MESSAGE_TYPE_USER_ADD_FRIEND 0xB5
+#define MESSAGE_TYPE_USER_DEL_FRIEND 0xB6
+
+/*
 //message type
 #define MESSAGE_HELO 0xA0
 #define MESSAGE_PING 0xA1
@@ -53,6 +63,7 @@ SOFTWARE.
 #define MESSAGE_SERVER 0xA3
 #define MESSAGE_BYE 0xA4
 #define MESSAGE_YES 0xA5
+*/
 
 #define COMMAND_HELO 		0xA0
 #define COMMAND_PING 		0xA1
@@ -61,6 +72,8 @@ SOFTWARE.
 #define COMMAND_BYE 		0xA4
 #define COMMAND_YES 		0xA5
 #define COMMAND_OTHER_MESSAGE 	0xA6
+
+
 
 #ifdef S_OK
 	#undef S_OK
@@ -185,16 +198,22 @@ typedef struct SERVER_HEADER{
 
 
 typedef struct CLIENT {
-    int fd;
-    int clientId;
-    int serverid;
-	char drivceId[64];	
+    int fd; //socket fd
+    int clientId;//client id
+    int serverid;//server id
+	char drivceId[64];//client drivceid
 	char token[64];//ios token
-	int protocol;
+	int protocol;//custom ,xmpp,websocket
 	int clienttype;/*0=android,1=ios,2=web*/
 	long timeout;//socket time out,when have data need update time
     struct sockaddr_in addr;
-    pthread_mutex_t opt_lock;
+    void* data;//record user infomation ,when in login or reg message to record
+    pthread_mutex_t opt_lock;//read or write lock
+    /////////////////////////////////////////
+    //TODO will use it in version2.0
+    list_t* command;//save int it pushmessageinfo
+    void* (*sendcommand)(int sock,void* buf,size_t size);
+	void* (*readcommand)(int scok,void* buf); 
 }CLIENT;
 
 
