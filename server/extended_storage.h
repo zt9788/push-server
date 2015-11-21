@@ -42,7 +42,7 @@ char* getUserIdByUsername(char* username,char* outUserid);
 void freeUserInfo(user_info_t* userinfo);
 user_info_t* isUserLogin(char* userid);
 void freeUserInfo(user_info_t* userinfo);
-char* regUser(char* username,char* outUserid);
+char* regUser(char* username,char* drivceId,char* outUserid);
 user_info_t* addFriendsUseName(char* username,char* friendusername);
 user_info_t* getUserInfoByUserId(char* userid,user_info_t** userinfo);
 user_info_t* getUserInfoByName(char* username,user_info_t** userinfo);

@@ -186,7 +186,7 @@ char* getUserNameByDrivce(char* drivceId){
 	return NULL;
 }
 */
-char* regUser(char* username,char* outUserid){
+char* regUser(char* username,char* drivceId,char* outUserid){
 	int redisId=0;
 	int ret = 0;
     redisContext* redis = getRedis(&redisId);
@@ -205,8 +205,9 @@ char* regUser(char* username,char* outUserid){
 	redisAppendCommand(redis,"set %s %s",userid,username);//1
 	redisAppendCommand(redis,"set %s %s",username,userid);//2
 	redisAppendCommand(redis,"sadd reg_user_list %s",userid);//3	
+	redisAppendCommand(redis,"sadd %s_drivce_list %s",userid,drivceId);//4
 	int i =0;
-	for(i=0;i<3;i++){
+	for(i=0;i<4;i++){
 		redisGetReply(redis,(void**)&reply);
         freeReplyObject(reply);//1	
 	}

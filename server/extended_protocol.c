@@ -112,7 +112,7 @@ int createClientUserReg(int sock,int clienttype,char* username){
 	cJSON_Delete(json);	
 	return ret;	
 }
-char* parseClientUserReg(int sock,void* buf,int serverid,int* outResult){
+char* parseClientUserReg(int sock,void* buf,int serverid,char* drivceId,int* outResult){
 	uint16_t length = ntohs(*(uint16_t*)buf);
 	buf += sizeof(uint16_t);
 	char *txt = malloc(length);
@@ -130,7 +130,7 @@ char* parseClientUserReg(int sock,void* buf,int serverid,int* outResult){
 		0
 	};
 #ifndef CLIENTMAKE	
-	char* uid = regUser(username,userid);
+	char* uid = regUser(username,drivceId,userid);
 	int isSucess = 0;
 	if(uid != NULL)
 		isSucess = 1;

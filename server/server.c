@@ -689,13 +689,16 @@ void* read_thread_function(void* client_t)
             if(header.messagetype == MESSAGE_TYPE_USER_REG){
             	//char username[64]={0};
             	int sucess;
-            	parseClientUserReg(client->fd,bufs,system_config.serverid,&sucess);
+            	parseClientUserReg(client->fd,bufs,system_config.serverid,client->drivceId,&sucess);
             	//int isSuccess = username==NULL?0:1;
             	//createServerUserReg(client->fd,system_config.serverid,isSuccess)
             }
             else if(header.messagetype == MESSAGE_TYPE_USER_LOGIN){
             	int sucess;
             	parseClientUserLogin(client->fd,bufs,system_config.serverid,client->drivceId,&sucess);
+            }
+            else if(header.messagetype == MESSAGE_TYPE_USER_FIND_USERNAME){
+            	
             }
         }
         else if(header.command == COMMAND_YES){

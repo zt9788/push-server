@@ -35,7 +35,7 @@ SOFTWARE.
 int createServerUserReg(int sock,int serverid,int isSuccess,char* userid,char* username);
 int createClientUserReg(int sock,int clienttype,char* username);
 char* parseClientUserReg(int sock,void* buf,int serverid,int* outResult);
-char* parseServerUserReg(int sock,void* buf,char* outResult);
+char* parseClientUserReg(int sock,void* buf,int serverid,char* drivceId,int* outResult)
 
 int* parseServerUserLogin(int sock,void* buf,int* outResult);
 int createServerUserLogin(int sock,int serverid,int isSuccess,char* username);
