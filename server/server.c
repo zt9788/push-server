@@ -698,7 +698,8 @@ void* read_thread_function(void* client_t)
             	parseClientUserLogin(client->fd,bufs,system_config.serverid,client->drivceId,&sucess);
             }
             else if(header.messagetype == MESSAGE_TYPE_USER_FIND_USERNAME){
-            	
+           		int sucess;
+            	parseClientUserFindUser(client->fd,bufs,system_config.serverid,&sucess);
             }
         }
         else if(header.command == COMMAND_YES){

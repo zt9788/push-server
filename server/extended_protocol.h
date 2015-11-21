@@ -31,15 +31,21 @@ SOFTWARE.
 #include "list.h"
 #include "util.h"
 #include "sc.h"
+#include "extended_storage.h"
 
 int createServerUserReg(int sock,int serverid,int isSuccess,char* userid,char* username);
 int createClientUserReg(int sock,int clienttype,char* username);
-char* parseClientUserReg(int sock,void* buf,int serverid,int* outResult);
-char* parseClientUserReg(int sock,void* buf,int serverid,char* drivceId,int* outResult)
+char* parseServerUserReg(int sock,void* buf,char* outResult);
+char* parseClientUserReg(int sock,void* buf,int serverid,char* drivceId,int* outResult);
 
-int* parseServerUserLogin(int sock,void* buf,int* outResult);
+int parseServerUserLogin(int sock,void* buf,int* outResult);
 int createServerUserLogin(int sock,int serverid,int isSuccess,char* username);
 char* parseClientUserLogin(int sock,void* buf,int serverid,char* drivceId,int* outResult);
 int createClientUserLogin(int sock,int clienttype,char* username);
+
+int createClientUserFindUser(int sock,int clienttype,char* username);
+char* parseClientUserFindUser(int sock,void* buf,int serverid,int* outResult);
+int createServerUserFindUser(int sock,int clienttype,user_info_t* userinfo);
+int parseServerUserFindUser(int sock,void* buf,int* outResult);
 
 #endif /* !EXTENDED_COMMADN_H */
