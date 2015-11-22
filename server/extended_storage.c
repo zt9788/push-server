@@ -131,6 +131,7 @@ list_t* getUserDrivceIdByUserId(char* userid,list_t** outList){
 	reply = redisCommand(redis,"SMEMBERS %s_drivce_list",userid);
 	int i =0 ;
 	if(reply != NULL){
+		list->free = free;
 		for(i=0;i<reply->elements;i++){
 			printf("drivces:%s\n",reply->element[i]->str);
 			char* str = malloc(strlen(reply->element[i]->str)+1);
@@ -169,6 +170,7 @@ list_t* getUserFriends(char* userid,list_t** outList){
 	reply = redisCommand(redis,"SMEMBERS %s_friends",userid);
 	int i =0 ;
 	if(reply != NULL){
+		list->free = free;
 		for(i=0;i<reply->elements;i++){
 			user_info_t* userinfo = NULL;
 			getUserInfoByUserId(reply->element[i]->str,&userinfo);

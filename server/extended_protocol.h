@@ -48,4 +48,8 @@ char* parseClientUserFindUser(int sock,void* buf,int serverid,int* outResult);
 int createServerUserFindUser(int sock,int clienttype,user_info_t* userinfo);
 int parseServerUserFindUser(int sock,void* buf,int* outResult);
 
+char* parseClientUserAddUser(int sock,void* buf,int serverid,int* outResult);
+int createClientUserAddUser(int sock,int clienttype,char* username,char* friendname);
+int createServerUserAddUser(int sock,int clienttype,user_info_t* userinfo);
+
 #endif /* !EXTENDED_COMMADN_H */

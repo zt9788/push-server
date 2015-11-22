@@ -690,8 +690,6 @@ void* read_thread_function(void* client_t)
             	//char username[64]={0};
             	int sucess;
             	parseClientUserReg(client->fd,bufs,system_config.serverid,client->drivceId,&sucess);
-            	//int isSuccess = username==NULL?0:1;
-            	//createServerUserReg(client->fd,system_config.serverid,isSuccess)
             }
             else if(header.messagetype == MESSAGE_TYPE_USER_LOGIN){
             	int sucess;
@@ -700,6 +698,10 @@ void* read_thread_function(void* client_t)
             else if(header.messagetype == MESSAGE_TYPE_USER_FIND_USERNAME){
            		int sucess;
             	parseClientUserFindUser(client->fd,bufs,system_config.serverid,&sucess);
+            }
+            else if(header.messagetype == MESSAGE_TYPE_USER_ADD_FRIEND ){
+            	int sucess;
+            	parseClientUserAddUser(client->fd,bufs,system_config.serverid,&sucess);
             }
         }
         else if(header.command == COMMAND_YES){

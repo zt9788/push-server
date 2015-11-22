@@ -407,8 +407,16 @@ int main(int argc, char **argv)
         	char fuser[255];
         	sscanf(buf,"%*s%s",fuser);
 			pthread_mutex_lock(&lock);
-			//createClientUserLogin(g_sock,1,username);
 			createClientUserFindUser(g_sock,1,fuser);
+			recvReturn(g_sock);
+			pthread_mutex_unlock(&lock);
+        	continue;
+        }
+        if(!strncasecmp(buf,"add",3)){
+        	char fuser[255];
+        	sscanf(buf,"%*s%s",fuser);
+			pthread_mutex_lock(&lock);
+			//createClientUserFindUser(g_sock,1,fuser);
 			recvReturn(g_sock);
 			pthread_mutex_unlock(&lock);
         	continue;
