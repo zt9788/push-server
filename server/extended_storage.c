@@ -45,6 +45,24 @@ SOFTWARE.
 #include "leak_detector_c.h"
 #endif
 
+void print_userinfo(user_info_t* userinfo){
+	printf(">> userinfo->userid = %s \n",userinfo->userid);	
+	printf(">> userinfo->username = %s \n",userinfo->username);
+	printf(">> [\n");
+	
+	if(userinfo->drivces){
+		int i = 0;
+		list_node_t* node = NULL;
+		for(i=0;i<userinfo->drivces->len;i++)
+		//while((node = list_rpop(userinfo->drivces))!=NULL)
+		{
+			node = list_at(userinfo->drivces,i);
+			printf(">> \t%s\n",node->val);
+		}
+	}	
+	printf(">> ]\n");			
+}
+
 user_info_t* addFriendsUseName(char* username,char* friendusername){
 	char userid[64]={0};
 	char userid2[64]={0};
@@ -83,6 +101,10 @@ user_info_t* getUserInfoByUserId(char* userid,user_info_t** userinfo){
 user_info_t	* getUserInfoByName(char* username,user_info_t** userinfo){
 	char userid[64]={0};
 	getUserIdByUsername(username,userid);
+	printf("userid=%s\n",userid);
+	if(strlen(userid) == 0){
+		return NULL;
+	}
 	user_info_t* info = *userinfo;
 	if (info == NULL){
 		info = malloc(sizeof(user_info_t));	
@@ -94,6 +116,7 @@ user_info_t	* getUserInfoByName(char* username,user_info_t** userinfo){
 	getUserDrivceIdByUserId(userid,&list);
 	if(list)
 		info->drivces = list;
+	print_userinfo(info);
 	*userinfo = info;
 	return info;
 }
@@ -109,7 +132,11 @@ list_t* getUserDrivceIdByUserId(char* userid,list_t** outList){
 	int i =0 ;
 	if(reply != NULL){
 		for(i=0;i<reply->elements;i++){
-			list_lpush(list,list_node_new(reply->element[i]->str));
+			printf("drivces:%s\n",reply->element[i]->str);
+			char* str = malloc(strlen(reply->element[i]->str)+1);
+			memset(str,0,strlen(reply->element[i]->str)+1);
+			strncpy(str,reply->element[i]->str,strlen(reply->element[i]->str));
+			list_lpush(list,list_node_new(str));
 		}
 	}else{
 		list_destroy(list);
@@ -161,8 +188,7 @@ char* getUserIdByUsername(char* username,char* outUserid){
 	int redisId=0;
 	int ret = 0;
     redisContext* redis = getRedis(&redisId);
-	redisReply* reply = NULL;
-	reply = redisCommand(redis,"get %s",username);
+	redisReply* reply = redisCommand(redis,"get %s",username);
 	if(reply != NULL)
 		strncpy(outUserid,reply->str,reply->len);
 	freeReplyObject(reply);	
@@ -254,10 +280,10 @@ user_info_t* userLogin(char* username,char* drivceId,user_info_t** outUserinfo){
 	getUserIdByUsername(username,userid);
 	redisAppendCommand(redis,"sadd login_user_list %s",userid);//1
 	redisAppendCommand(redis,"sadd %s_drivce_list %s",userid,drivceId);//2
-	freeReplyObject(reply);	
-	returnRedis(redisId);
-	freeReplyObject(reply);	
-	returnRedis(redisId);	
+	redisGetReply(redis,(void**)&reply);
+ 	freeReplyObject(reply);//1	
+	redisGetReply(redis,(void**)&reply);
+ 	freeReplyObject(reply);//1	
 	user_info_t* userinfo = *outUserinfo;
 	if (userinfo == NULL){
 		userinfo = malloc(sizeof(user_info_t));	
@@ -266,6 +292,7 @@ user_info_t* userLogin(char* username,char* drivceId,user_info_t** outUserinfo){
 	strncpy(userinfo->userid,userid,strlen(userid));
 	strncpy(userinfo->username,username,strlen(username));
 	*outUserinfo = userinfo;
+	returnRedis(redis);
 	return userinfo;
 }
 void userLogout(char* userid){

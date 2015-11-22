@@ -253,7 +253,11 @@ int createClientUserFindUser(int sock,int clienttype,char* username){
 	cJSON* json = cJSON_CreateObject();
 	cJSON_AddStringToObject(json,"username",username);	
 	char* str = cJSON_Print(json);	
-	printf("%s,%d",str,strlen(str));
+	char* str2 = cJSON_GetObjectItem(json,"username")->valuestring;
+	printf("\n");
+	printf("str=%s,str2=%s\n",str,str2);
+	printf("str=%s,%d\n",str,strlen(str));
+	dump_data(str2,strlen(str2));
 	int total = sizeof(client_header_2_t)+sizeof(uint16_t)+strlen(str);
 	void* bufs = malloc(total);
 	void* buf = bufs;
@@ -287,9 +291,12 @@ char* parseClientUserFindUser(int sock,void* buf,int serverid,int* outResult){
 		free(txt);
 		return NULL;
 	}
+	printf("json=%s\n",txt);
 	char* str = cJSON_GetObjectItem(json,"username")->valuestring;	
 	char* username = malloc(strlen(str)+1);
-	strncpy(username,str,strlen(str));		
+	strncpy(username,str,strlen(str));
+	printf("username = %s\n",username);	
+
 #ifndef CLIENTMAKE	
 	user_info_t* userinfo=NULL;
 	user_info_t* uinfo = getUserInfoByName(username,&userinfo);//userLogin(username,drivceId,&clientinfo);//regUser(username,userid);
@@ -313,9 +320,13 @@ int createServerUserFindUser(int sock,int clienttype,user_info_t* userinfo){
 		cJSON* arr = cJSON_CreateArray();
 		if(userinfo->drivces){
 			list_node_t* node = NULL;
-			while((node=list_lpop(userinfo->drivces))!=NULL){
-				cJSON_AddItemToArray(arr,cJSON_CreateString(node->val));				
-			}
+			int i = 0;
+			for(i=0;i<userinfo->drivces->len;i++)
+			{
+				node = list_at(userinfo->drivces,i);
+				printf("pop list=%s\n",node->val);
+				cJSON_AddItemToArray(arr,cJSON_CreateString(node->val));	
+			}															
 		}
 		cJSON_AddItemToObject(json,"driveces",arr);
 	}
