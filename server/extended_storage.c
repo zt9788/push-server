@@ -70,12 +70,14 @@ user_info_t* addFriendsUseName(char* username,char* friendusername){
 	getUserIdByUsername(friendusername,userid2);
 	int redisId=0;
 	redisContext* redis = getRedis(&redisId);
-	redisReply* reply = NULL;
-	reply = redisCommand(redis,"sadd %s_friends %s",userid,userid2);
-		freeReplyObject(reply);	
+	redisReply* reply = redisCommand(redis,"sadd %s_friends %s",userid,userid2);
+	freeReplyObject(reply);	
 	returnRedis(redisId);
 	user_info_t* userinfo = NULL;
-	getUserInfoByUserId(friendusername,&userinfo);
+	printf("userid2 = %s\n",userid2);
+	getUserInfoByUserId(userid2,&userinfo);
+	if(userinfo != NULL)
+		printf("userinfo = %s\n",userinfo->username);
 	return userinfo;
 	
 }
@@ -88,7 +90,7 @@ user_info_t* getUserInfoByUserId(char* userid,user_info_t** userinfo){
 	if (info == NULL){
 		info = malloc(sizeof(user_info_t));	
 	}	
-	memset(*userinfo,0,sizeof(user_info_t));
+	memset(info,0,sizeof(user_info_t));
 	strncpy(info->userid,userid,strlen(userid));
 	strncpy(info->username,username,strlen(username));
 	
@@ -275,11 +277,11 @@ void freeUserInfo(user_info_t* userinfo){
 }
 user_info_t* userLogin(char* username,char* drivceId,user_info_t** outUserinfo){
 	int redisId=0;
-	int ret = 0;
-    redisContext* redis = getRedis(&redisId);
-	redisReply* reply = NULL;	
+	int ret = 0;	
 	char userid[64]={0};
 	getUserIdByUsername(username,userid);
+	redisContext* redis = getRedis(&redisId);
+	redisReply* reply = NULL;
 	redisAppendCommand(redis,"sadd login_user_list %s",userid);//1
 	redisAppendCommand(redis,"sadd %s_drivce_list %s",userid,drivceId);//2
 	redisGetReply(redis,(void**)&reply);
@@ -300,7 +302,7 @@ user_info_t* userLogin(char* username,char* drivceId,user_info_t** outUserinfo){
 void userLogout(char* userid){
 	int redisId=0;
 	redisReply* reply = NULL;
-    redisContext* redis = getRedis(&redisId);    
+    redisContext* redis = getRedis(&redisId);
     redisAppendCommand(redis,"srem %s_drivce_list %s",userid);//1
     redisAppendCommand(redis,"srem login_user_list %s",userid);//2
     redisGetReply(redis,(void**)&reply);
@@ -309,4 +311,3 @@ void userLogout(char* userid){
     freeReplyObject(reply);	
 	returnRedis(redisId);
 }
-

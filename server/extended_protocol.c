@@ -421,18 +421,16 @@ char* parseClientUserAddUser(int sock,void* buf,int serverid,int* outResult){
 	char* str = cJSON_GetObjectItem(json,"username")->valuestring;	
 	char* username = malloc(strlen(str)+1);
 	strncpy(username,str,strlen(str));
-	str = cJSON_GetObjectItem(json,"username")->valuestring;
+	str = cJSON_GetObjectItem(json,"friendname")->valuestring;
 	char* friendname = 	malloc(strlen(str)+1);
 	strncpy(friendname,str,strlen(str));
 #ifndef CLIENTMAKE	
-	user_info_t* userinfo=NULL;
-	user_info_t* uinfo = addFriendsUseName(username,friendname);//getUserInfoByName(username,&userinfo);//userLogin(username,drivceId,&clientinfo);//regUser(username,userid);
-	
+	user_info_t* uinfo = addFriendsUseName(username,friendname);//getUserInfoByName(username,&userinfo);//userLogin(username,drivceId,&clientinfo);//regUser(username,userid);	
 	int isSucess = 0;
 	if(uinfo != NULL)
 		isSucess = 1;
-	*outResult = createServerUserAddUser(sock,serverid,userinfo);
-	freeUserInfo(userinfo);
+	*outResult = createServerUserAddUser(sock,serverid,uinfo);
+	freeUserInfo(uinfo);
 #endif	
 	free(txt);
 	cJSON_Delete(json);
@@ -457,7 +455,7 @@ int createServerUserAddUser(int sock,int clienttype,user_info_t* userinfo){
 				cJSON_AddItemToArray(arr,cJSON_CreateString(node->val));	
 			}															
 		}
-		cJSON_AddItemToObject(json,"driveces",arr);
+		cJSON_AddItemToObject(json,"drivces",arr);
 	}
 	else{
 		cJSON_AddNumberToObject(json,"isSuccess",0);
@@ -478,4 +476,193 @@ int createServerUserAddUser(int sock,int clienttype,user_info_t* userinfo){
 	cJSON_Delete(json);
 	//free(str);
 	return ret;	
+}
+
+user_info_t* parseServerUserAddUser(int sock,void* buf,user_info_t** outResult){
+	uint16_t length = ntohs(*(uint16_t*)buf);
+	buf += sizeof(uint16_t);
+	char *txt = malloc(length);
+	memcpy(txt,buf,length);
+	buf += length;	
+	cJSON* json = cJSON_Parse(txt);
+	if(!json){
+		free(txt);
+		return NULL;
+	}
+	int isSucess = cJSON_GetObjectItem(json,"isSuccess")->valueint;
+	if(isSucess == 0) {
+		free(txt);
+		cJSON_Delete(json);
+		return NULL;
+	}
+	user_info_t* uinfo = *outResult;
+	if(uinfo == NULL)
+		uinfo = malloc(sizeof(user_info_t));
+	//char* username = NULL;
+	char* str = cJSON_GetObjectItem(json,"username")->valuestring;	
+	if(str != NULL){	
+		strncpy(uinfo->username,str,strlen(str));	
+	}
+	str = cJSON_GetObjectItem(json,"userid")->valuestring;	
+	if(str != NULL){	
+		strncpy(uinfo->userid,str,strlen(str));	
+	}
+	cJSON* arr = cJSON_GetObjectItem(json,"drivces");	
+	uinfo->drivces = list_new();
+	int i=0;
+	for(i=0;i<cJSON_GetArraySize(arr);i++){
+		str = cJSON_GetArrayItem(arr,i)->valuestring;
+		char* drivce = malloc(strlen(str));
+		memset(drivce,0,strlen(str));
+		list_lpush(uinfo->drivces,list_node_new(drivce));
+	}
+	uinfo->drivces->free=free;	
+	*outResult = uinfo;
+	free(txt);
+	cJSON_Delete(json);
+	return uinfo;
+}
+
+
+
+int createClientUserGetFriends(int sock,int clienttype,char* username){
+	client_header_2_t* header = createClientHeader(COMMAND_OTHER_MESSAGE,MESSAGE_TYPE_USER_GET_FRIEND,clienttype);	
+	cJSON* json = cJSON_CreateObject();
+	cJSON_AddStringToObject(json,"username",username);		
+	char* str = cJSON_Print(json);	
+	int total = sizeof(client_header_2_t)+sizeof(uint16_t)+strlen(str);
+	void* bufs = malloc(total);
+	void* buf = bufs;
+	header->total = total;
+	memcpy(buf,header,sizeof(client_header_2_t));	
+	buf += sizeof(client_header_2_t);
+	*(uint16_t*)buf = htons(strlen(str));	
+	buf += sizeof(uint16_t);
+	memcpy(buf,str,strlen(str));
+	dump_data(bufs,total);
+	int ret =send(sock,bufs,total,0);
+	printf("%d\n",ret);
+	free(bufs);	
+//	free(str);
+	cJSON_Delete(json);	
+	return ret;	
+}
+char* parseClientUserGetFriends(int sock,void* buf,int serverid,int* outResult){
+	uint16_t length = ntohs(*(uint16_t*)buf);
+	buf += sizeof(uint16_t);
+	char *txt = malloc(length);
+	memcpy(txt,buf,length);
+	buf += length;	
+	cJSON* json = cJSON_Parse(txt);
+	if(!json){
+		free(txt);
+		return NULL;
+	}
+
+	char* str = cJSON_GetObjectItem(json,"username")->valuestring;	
+	char* username = malloc(strlen(str)+1);
+	strncpy(username,str,strlen(str));
+		
+#ifndef CLIENTMAKE	
+	list_t* list = NULL;
+	char userid[64]={0};
+	getUserIdByUsername(username,userid);
+	list_t* flist = getUserFriends(userid,&list);		
+	int isSucess = 0;
+	if(flist != NULL)
+		isSucess = 1;
+	*outResult = createServerUserGetFriends(sock,serverid,list);	
+	list_destroy(list);
+#endif	
+	free(txt);
+	cJSON_Delete(json);
+	return username;
+}
+
+int createServerUserGetFriends(int sock,int clienttype,list_t* list){
+	client_header_2_t* header = createClientHeader(COMMAND_OTHER_MESSAGE,MESSAGE_TYPE_USER_GET_FRIEND,clienttype);	
+	cJSON* json = cJSON_CreateArray();
+	list_node_t *node = NULL;
+	if(list != NULL){
+		int i = 0;
+		for(i=0;i<list->len;i++)
+		{
+			node = list_at(list,i);
+			user_info_t* uinfo = (user_info_t*)node->val;
+			cJSON* info = cJSON_CreateObject();
+			cJSON_AddStringToObject(info,"username",uinfo->username);
+			cJSON_AddStringToObject(info,"userid",uinfo->userid);
+			cJSON* arr = cJSON_CreateArray();
+			int j = 0;
+			if(uinfo->drivces != NULL){
+				for(j=0;j<uinfo->drivces->len;j++){
+				 	cJSON* strjson = cJSON_CreateString(list_at(uinfo->drivces,j)->val);
+				 	cJSON_AddItemToArray(arr,strjson);					
+				}
+			}			
+			cJSON_AddItemToObject(info,"drivces",arr);
+			cJSON_AddItemToArray(json,info);
+		}															
+	}		
+	char* str = cJSON_Print(json);	
+	printf("%s,%d",str,strlen(str));
+	int total = sizeof(server_header_2_t)+sizeof(uint16_t)+strlen(str);
+	void* bufs = malloc(total);
+	void* buf = bufs;
+	header->total = total;
+	memcpy(buf,header,sizeof(server_header_2_t));
+	buf += sizeof(server_header_2_t);
+	*(uint16_t*)buf = htons(strlen(str));
+	buf += sizeof(uint16_t);
+	memcpy(buf,str,strlen(str));
+	int ret =send(sock,bufs,total,0);
+	free(bufs);
+	cJSON_Delete(json);
+	//free(str);
+	return ret;	
+}
+
+
+list_t* parseServerUserGetUser(int sock,void* buf,list_t** outResult){
+	uint16_t length = ntohs(*(uint16_t*)buf);
+	buf += sizeof(uint16_t);
+	char *txt = malloc(length);
+	memcpy(txt,buf,length);
+	buf += length;	
+	cJSON* json = cJSON_Parse(txt);
+	if(!json){
+		free(txt);
+		return NULL;
+	}
+	list_t* list = *outResult;
+	if(list == NULL)
+		list = list_new();
+
+	int i = 0;
+	for(i=0;i<cJSON_GetArraySize(json);i++){
+		user_info_t* uinfo = malloc(sizeof(user_info_t));
+		char* str = cJSON_GetObjectItem(json,"username")->valuestring;	
+		if(str != NULL){	
+			strncpy(uinfo->username,str,strlen(str));	
+		}
+		str = cJSON_GetObjectItem(json,"userid")->valuestring;	
+		if(str != NULL){	
+			strncpy(uinfo->userid,str,strlen(str));	
+		}
+		cJSON* arr = cJSON_GetObjectItem(json,"drivces");	
+		uinfo->drivces = list_new();
+		uinfo->drivces->free=free;		
+		int i=0;
+		for(i=0;i<cJSON_GetArraySize(arr);i++){
+			str = cJSON_GetArrayItem(arr,i)->valuestring;
+			char* drivce = malloc(strlen(str));
+			memset(drivce,0,strlen(str));
+			list_lpush(uinfo->drivces,list_node_new(drivce));
+		}	
+		list_lpush(list,list_node_new(uinfo));
+	}	
+	*outResult = list;
+	free(txt);
+	cJSON_Delete(json);
+	return list;
 }

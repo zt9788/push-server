@@ -51,5 +51,10 @@ int parseServerUserFindUser(int sock,void* buf,int* outResult);
 char* parseClientUserAddUser(int sock,void* buf,int serverid,int* outResult);
 int createClientUserAddUser(int sock,int clienttype,char* username,char* friendname);
 int createServerUserAddUser(int sock,int clienttype,user_info_t* userinfo);
+user_info_t* parseServerUserAddUser(int sock,void* buf,user_info_t** outResult);
 
+int createClientUserGetFriends(int sock,int clienttype,char* username);
+char* parseClientUserGetFriends(int sock,void* buf,int serverid,int* outResult);
+int createServerUserGetFriends(int sock,int clienttype,list_t* userinfos);
+list_t* parseServerUserGetUser(int sock,void* buf,list_t** outResult);
 #endif /* !EXTENDED_COMMADN_H */

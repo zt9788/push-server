@@ -600,7 +600,7 @@ void* read_thread_function(void* client_t)
     int reads = 1;
     int epollfd = g_epollfd;
     time_t t;
-    time(t);
+    time(&t);
     if((n = recv(sockfd,buf,MAXBUF,0)) > 0)
     //while(1)
 	{
@@ -702,6 +702,10 @@ void* read_thread_function(void* client_t)
             else if(header.messagetype == MESSAGE_TYPE_USER_ADD_FRIEND ){
             	int sucess;
             	parseClientUserAddUser(client->fd,bufs,system_config.serverid,&sucess);
+            }
+            else if(header.messagetype == MESSAGE_TYPE_USER_GET_FRIEND){
+            	int sucess;
+            	parseClientUserGetFriends(client->fd,bufs,system_config.serverid,&sucess);
             }
         }
         else if(header.command == COMMAND_YES){

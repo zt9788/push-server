@@ -16,6 +16,7 @@
 #include "parse_command.h"
 #include "list.h"
 #include "extended_protocol.h"
+#include "client.h"
 
 //#define MAXBUF 1024
 #define WIN32
@@ -35,6 +36,8 @@
 #endif
 #define __DEBUG(format, ...) printf("FILE: "__FILE__", LINE: %d: "format"/n", __LINE__, ##__VA_ARGS__)
 
+#define CLIENT_TYPE 1
+/*
 typedef struct pushstruct
 {
     CLIENT* client;
@@ -42,16 +45,50 @@ typedef struct pushstruct
     int isexit;
     int timeout;
 } pushstruct;
+*/
+/*
 typedef struct thread_struct
 {
     int sockfd;
     pthread_mutex_t lock;
-    int isexit;
-    char token[255];
+//    int isexit;
+//  char token[255];
 } thread_struct;
+*/
+typedef struct client_config{
+	char serverip[64];
+	int port;
+	char drivceId[64];
+}client_config_t;
 
 pthread_mutex_t lock;
+
 int g_sock;
+
+int g_isexit = 0;
+
+
+int createConnect(char* serverip,int port){
+	int sockfd, len;
+    struct sockaddr_in dest;
+    if ((sockfd = socket(AF_INET, SOCK_STREAM, 0)) == -1)
+    {
+        perror("Socket");
+		return -1;
+    }
+    dest.sin_family = AF_INET;
+    dest.sin_port = htons(atoi(port));
+    if (inet_aton(serverip, (struct in_addr *) &dest.sin_addr.s_addr) == 0)
+    {
+        perror(argv[1]);
+        exit(errno);
+    }
+    if(connect(sockfd, (struct sockaddr *) &dest, sizeof(dest)) != 0)
+    {
+        perror("Connect ");
+		return -1;
+    }
+}
 void recvReturn(int sockfd)
 {
     char buf[MAXBUF];
@@ -66,11 +103,11 @@ void recvReturn(int sockfd)
     	
     }
 }
-void sendhelo(int sockfd,char* token)
+void sendhelo(int sockfd,char* drivceId)
 {
 	pthread_mutex_lock(&lock);
     void* buff = NULL;
-    int length = createClientHelo(&buff,1,token,NULL);
+    int length = createClientHelo(&buff,CLIENT_TYPE,drivceId,NULL);
     printf("helo\n");
     dump_data(buff,length);
     int len = send(sockfd, buff, length, 0);
@@ -88,11 +125,10 @@ void sendhelo(int sockfd,char* token)
 
 }
 
-void sendping(int sockfd,char* token)
-{
-	
+void sendping(int sockfd)
+{	
 	pthread_mutex_lock(&lock);
-    void* buff = createClientPing(1);
+    void* buff = createClientPing(CLIENT_TYPE);
     int len = send(sockfd, buff, sizeof(client_header_2_t), 0);
     printf("ping\n");
     dump_data(buff,len);
@@ -110,105 +146,73 @@ void sendping(int sockfd,char* token)
 /**
  * time to ping server
  */
-void thread(thread_struct* thread_s)
+void timetoping(void* param)
 {
-    while(thread_s->isexit == 0)
+    while(g_isexit == 0)
     {
-
         int i = 0;
         for(i = 0; i<100; i++)
         {
-            if(thread_s->isexit == 0)
+            if(g_isexit == 0)
                 sleep(1);
             else
                 return;
         }
-        sendping(thread_s->sockfd,thread_s->token);
-
+        sendping(g_sock);
     }
 }
 
-void* client_thread(char **argv)
+int message_processer(char* serverip,int port,char* drivceId)
 {
-
-    //char totoken_temp[64]={0};
     int isQuit = 0;
     while(isQuit == 0)
     {
         int sockfd, len;
-        struct sockaddr_in dest;
         char bufs[MAXBUF + 1];
         char token[MAXBUF];
         fd_set rfds;
         struct timeval tv;
         int retval, maxfd = -1;
-        if ((sockfd = socket(AF_INET, SOCK_STREAM, 0)) == -1)
-        {
-            perror("Socket");
-            exit(errno);
-        }
-
-        bzero(&dest, sizeof(dest));
-        bzero(&token,sizeof(token));
-        strcpy(token,argv[3]);
-        char* tempArgv = malloc(strlen(argv[4]));
-        strcpy(tempArgv,argv[4]);
-        int totokenLength = splitcountx(argv[4],"_");
-        char** totoken_temp = NULL;
-        totoken_temp = malloc(totokenLength);
-        int i =0;
-        for(i=0; i<totokenLength; i++)
-        {
-            totoken_temp[i] = malloc(64);
-        }
-        totokenLength = split(totoken_temp,tempArgv,"_");
-        free(tempArgv);
+        //bzero(&dest, sizeof(dest));
+        //bzero(&token,sizeof(token));
+        //strcpy(token,argv[3]);
+        //char* tempArgv = malloc(strlen(argv[4]));
+        //strcpy(tempArgv,argv[4]);
+        //int totokenLength = splitcountx(argv[4],"_");
+        //char** totoken_temp = NULL;
+        //totoken_temp = malloc(totokenLength);
+        //int i =0;
+        //for(i=0; i<totokenLength; i++)
+        //{
+        //    totoken_temp[i] = malloc(64);
+        //}
+        //totokenLength = split(totoken_temp,tempArgv,"_");
+        //free(tempArgv);
         //bzero(&totoken_temp,sizeof(totoken_temp));
 
         //strcpy(totoken_temp,argv[4]);
-        dest.sin_family = AF_INET;
-        dest.sin_port = htons(atoi(argv[2]));
-        if (inet_aton(argv[1], (struct in_addr *) &dest.sin_addr.s_addr) == 0)
-        {
-            perror(argv[1]);
-            exit(errno);
-        }
-
-        if(connect(sockfd, (struct sockaddr *) &dest, sizeof(dest)) != 0)
-        {
-            perror("Connect ");
-            exit(errno);
-        }
+        sockfd = createConnect(argv[1],atoi(argv[2]));
+        if(sockfd == -1)
+        	return -1;
         g_sock = sockfd;
-        printf("connect to server port:%d...\n",dest.sin_port);
-
-        sendhelo(sockfd,token);
-        //clock_t start = clock();
+        printf("connect to server...\n");
+        sendhelo(sockfd,drivceId);
         //start ping thread
-        thread_struct st;
-        st.sockfd = sockfd;
-        st.isexit = 0;
-        strcpy(st.token,token);
-        pthread_t thread_id;
-        pthread_mutex_init(&st.lock, NULL);
-        int ret=pthread_create(&thread_id,NULL,(void *) thread,&st);
-        pthread_mutex_unlock(&st.lock);
+        //thread_struct st;
+        //st.sockfd = sockfd;
+        //st.isexit = 0;
+        //strcpy(st.token,token);
+       
         while (1)
         {
-
             FD_ZERO(&rfds);
-            //FD_SET(0, &rfds);
             maxfd = 0;
-
             FD_SET(sockfd, &rfds);
             if (sockfd > maxfd)
                 maxfd = sockfd;
-
             tv.tv_sec = 1;
             tv.tv_usec = 0;
-
             retval = select(maxfd + 1, &rfds, NULL, NULL, &tv);
-
             if (retval == -1)
             {
                 printf("select error! %s", strerror(errno));
@@ -221,24 +225,16 @@ void* client_thread(char **argv)
             }
             else
             {
-                if (FD_ISSET(0, &rfds))
-                {
-
-                }
-                else if (FD_ISSET(sockfd, &rfds))
-                {
-                	
+                if (FD_ISSET(sockfd, &rfds))
+                {                	
                     bzero(bufs, MAXBUF + 1);
                     int lockret = pthread_mutex_trylock(&lock);
                     if(lockret == EBUSY)
                     	continue;
-                    len = recv(sockfd, bufs, MAXBUF, 0);                    
-                    //printf("recv data recv len:%d,SERVER_HEADER len:%d\n",len,sizeof(SERVER_HEADER));
+                    len = recv(sockfd, bufs, MAXBUF, 0);
                     printf("recv:\n");
                     char* buf = bufs;
                     dump_data(buf,len);
-                    //SERVER_HEADER* header = malloc(sizeof(SERVER_HEADER));
-                    //bzero(header,sizeof(SERVER_HEADER));
                     server_header_2_t header;
                     memset(&header,0,sizeof(server_header_2_t));
                     if (len > 0)
@@ -256,7 +252,8 @@ void* client_thread(char **argv)
                                 char messageid[64]= {0};
                                 char* message = NULL;
                                 int ret = parseServerMessage(sockfd,buff,
-                                                             &header,fromdrivceId,messageid,&message,len,"/tmp");
+                                                             &header,fromdrivceId,
+															 messageid,&message,len,"/tmp");
                                 if(ret < 0)
                                 {
                                     printf("has error\n");
@@ -286,19 +283,13 @@ void* client_thread(char **argv)
                             printf("recv failed！errno:%d，error msg: '%s'\n", errno, strerror(errno));
                             printf("other exit，terminal chat\n");
                         }
-
-
-                        //  free(header);
                         break;
-                        //continue;
                     }
-                    // free(header);
-                    
+                    // free(header);                    
                     pthread_mutex_unlock(&lock);
                 }
             }
         }
-
         close(sockfd);
         pthread_mutex_init(&st.lock, NULL);
         st.isexit = 1;
@@ -306,6 +297,10 @@ void* client_thread(char **argv)
         pthread_join(thread_id,0);
     }
     return 0;
+}
+void* client_thread(void* param){
+	client_config_t* config = param;
+	message_processer(config->serverip,config->port,config->drivceId);
 }
 /*
 int main(int argc,char** argv){
@@ -327,14 +322,29 @@ int main(int argc,char** argv){
 		createServerMessagereply(-1,1,&info,"");
 }
 */
+void start_client(char* servreip,char* port,char* drivceId){
+   	client_config_t config;
+	strcpy(config.serverip,serverip);
+	config.port = port;
+	strcpy(config.drivceId,drivceId);
+	pthread_mutex_init(&lock,NULL);
+    pthread_t thr_id;
+    if (pthread_create(&thr_id, NULL, (void *) client_thread, &config) != 0)
+    {
+        printf("%spthread_create failed, errno%d, error%s\n", __FUNCTION__,
+               errno, strerror(errno));
+        exit(1);
+    }
+     pthread_t thread_id;
+     pthread_create(&thread_id,NULL,(void *) timetoping,NULL);
+}
 int main(int argc, char **argv)
 {
-
     if (argc <= 3)
     {
-        printf("Usage: %s IP Port token",argv[0]);
+        printf("Usage: %s IP Port token send to\n",argv[0]);
         exit(0);
-    }
+    }    
     char token[64];
     bzero(&token,strlen(token));
     strcpy(token,argv[3]);
@@ -350,15 +360,9 @@ int main(int argc, char **argv)
     }
     totokenLength = split(totoken_temp,tempArgv,"_");
     free(tempArgv);
-	pthread_mutex_init(&lock,NULL);
-    pthread_t thr_id;
-    if (pthread_create(&thr_id, NULL, (void *) client_thread, argv) != 0)
-    {
-        printf("%spthread_create failed, errno%d, error%s\n", __FUNCTION__,
-               errno, strerror(errno));
-        exit(1);
-    }
-    //int ret=pthread_create(&thread_id,NULL,(void *) thread,&st);
+    
+    start_client(argv[1],atoi(argv[2]),argv[3]);
+   	
     char buf[MAXBUF];
     char username[255]={0};
     while(1)
@@ -390,7 +394,7 @@ int main(int argc, char **argv)
         	sscanf(buf,"%*s%s",username);
         	printf("username");
 			pthread_mutex_lock(&lock);
-			createClientUserReg(g_sock,1,username);
+			createClientUserReg(g_sock,CLIENT_TYPE,username);
 			__DEBUG("\n");
 			recvReturn(g_sock);
 			pthread_mutex_unlock(&lock);
@@ -416,7 +420,17 @@ int main(int argc, char **argv)
         	char fuser[255];
         	sscanf(buf,"%*s%s",fuser);
 			pthread_mutex_lock(&lock);
-			//createClientUserFindUser(g_sock,1,fuser);
+			createClientUserAddUser(g_sock,1,username,fuser);
+			recvReturn(g_sock);
+			pthread_mutex_unlock(&lock);
+        	continue;
+        }
+		if(!strncasecmp(buf,"get",3)){
+//        	char fuser[255];
+//        	sscanf(buf,"%*s%s",fuser);
+			pthread_mutex_lock(&lock);
+			//createClientUserAddUser(g_sock,1,username,fuser);
+			createClientUserGetFriends(g_sock,1,username);
 			recvReturn(g_sock);
 			pthread_mutex_unlock(&lock);
         	continue;
