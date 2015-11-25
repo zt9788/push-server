@@ -53,7 +53,7 @@ int parseClientHelo(void* buf,char* drivceId,char* iostoken,int clienttype);
 void* parseServerHelo(void* buf,server_config_to_client_t* config);
 int createClientMessage(int sock,unsigned	char messsagetype,unsigned	char clienttype,
 						short delytime,
-						char* contentOrFileName,short len,list_t* sendto);
+						char* contentOrFileName,list_t* sendto);
 int parseClientMessage(int sockfd,void* bufs,client_header_2_t* header,char* driveceId,
 		char* token,int recvlen,char* fromip,char* tempPath);
 client_header_2_t* createClientHeader(unsigned char command,unsigned char messagetype,unsigned char clienttype);

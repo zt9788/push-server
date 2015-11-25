@@ -34,15 +34,15 @@ SOFTWARE.
 #define __DEBUG(format, ...) printf("FILE: "__FILE__", LINE: %d: "format"/n", __LINE__, ##__VA_ARGS__)
 int createClientMessage(int sock,unsigned	char messsagetype,unsigned	char clienttype,
 						short delytime,
-						char* contentOrFileName,short len,list_t *sendto){
+						char* contentOrFileName,list_t *sendto){
 	client_header_2_t* header = createClientHeader(COMMAND_MESSAGE,messsagetype,clienttype);
 	int i = 0;
 	int length = sizeof(client_header_2_t);	
-	char* tempBufhead = malloc(MAX_DRIVCEID_LENGTH*len+sizeof(uint16_t)*(len+1));
+	char* tempBufhead = malloc(MAX_DRIVCEID_LENGTH*sendto->len+sizeof(uint16_t)*(sendto->len+1));
 	int templenth = 0;
 	void* tempBuf = tempBufhead;
 	
-	*(uint16_t*)tempBuf = htons(len);
+	*(uint16_t*)tempBuf = htons(sendto->len);
 	tempBuf += sizeof(uint16_t);
 	templenth += sizeof(uint16_t);
 	list_node_t *last = NULL;

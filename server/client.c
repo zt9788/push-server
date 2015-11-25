@@ -59,15 +59,140 @@ typedef struct client_config{
 	char serverip[64];
 	int port;
 	char drivceId[64];
+	char tempPath[500];
+	void* ptr;
 }client_config_t;
 
+
+
 pthread_mutex_t lock;
+pthread_mutex_t send_lock;
+pthread_cond_t  queue_send;
 
 int g_sock;
-
 int g_isexit = 0;
+pthread_t core_thread_id;
+pthread_t ping_thread_id;
+pthread_t send_thread_id;
+list_t* sendlist;
 
 
+
+void* send_Message(void* data)
+{
+//	sendmessage_stuct_t* sst = args;
+	//JNIEnv* env = (JNIEnv*)sst->env;
+    send_message_t* head = NULL;//sendlist;
+    while(g_isexit == 0)
+    {
+    	//LOGI("qidongle");
+        pthread_mutex_lock(&send_lock);        
+        pthread_cond_wait(&queue_send, &send_lock);
+            //LOGI("jinrule");
+            //head = sendlist;
+         while(sendlist->len>0)
+//         while(head)
+        {
+            //sendlist = (send_message_t*)head->next; 
+			list_node_t* node = list_rpop(sendlist);
+			send_message_t* sendmessage = node->val;
+            int len = 0;
+            int length = sendmessage->len;
+            void* buff = sendmessage->buff;            
+            //LOGI("total filesize %d",length);
+            pthread_mutex_lock(&lock);
+            createClientMessage(g_sock,
+								CLIENT_TYPE,sendmessage->messagetype,
+								sendmessage->delytime,sendmessage->buff,sendmessage->sendto);
+            /*
+            if(length>MAXBUF)
+            {
+                while(1)
+                {
+                    int tempRet = 0;
+                    if((length-len)>MAXBUF)
+                    {
+                        tempRet = send(g_sock, buff+len, MAXBUF, 0);
+                        //LOGI("send len %d,%d,%d",tempRet,len,length-len);
+                        if(tempRet < 0)
+                        {
+                            pthread_mutex_unlock(&lock);
+                            goto send_error2;
+                        }
+                    }
+                    else
+                    {
+                        tempRet = send(g_sock, buff+len, length-len, 0);
+                        //LOGI("send len %d,%d,%d",tempRet,len,length-len);
+                        if(tempRet < 0)
+                        {
+                            pthread_mutex_unlock(&lock);
+                            goto send_error2;
+                        }
+                        len += tempRet;
+                        break;
+                    }
+                    len += tempRet;
+                }
+                
+
+            }
+            else
+            {
+                len = send(g_sock, buff, length, 0);
+                //LOGI("send len %d",len);
+                if(len < 0)
+                {
+                    //pthread_mutex_unlock(&fd_lock);
+                    goto send_error2;
+                }
+            }
+            */
+            //recv response
+            unsigned char rebuf[MAXBUF];
+            len = recv(g_sock,rebuf,MAXBUF,0);
+            if(len<0){
+            	goto send_error2;
+            }
+            server_header_2_t header;
+            memset(&header,0,sizeof(server_header_2_t));
+            void* buffrecv = parseServerHeader(rebuf,&header);
+            char fromdrivceId[64]= {0};
+            char messageid[64]= {0};
+            char* message = NULL;
+            /*
+            int ret = parseServerMessage(g_sock,buffrecv,
+                                         &header,fromdrivceId,
+										 messageid,&message,len,"");
+			*/
+			
+send_error2:
+			
+			pthread_mutex_unlock(&lock);
+            pthread_mutex_unlock(&send_lock);
+            //call java function to show the message is send ok
+            if(len<0)
+				sendMessageResponse(sendmessage->messageid,messageid,0,"send error",data);
+			else
+				sendMessageResponse(sendmessage->messageid,NULL,1,"",data);
+				
+            free(sendmessage->buff);
+            free(sendmessage->messageid);
+            free(sendmessage);
+            //LOGI("1eventList error！errno:%d，error msg: '%s'\n", errno, strerror(errno));
+        }
+    }
+    return NULL;
+}
+
+void stop_client(){
+	g_isexit = 1;
+	close(g_sock);
+	pthread_mutex_unlock(&lock);
+    pthread_cond_signal(&queue_send);
+	pthread_join(ping_thread_id,NULL);
+	pthread_join(core_thread_id,NULL);
+}
 int createConnect(char* serverip,int port){
 	int sockfd, len;
     struct sockaddr_in dest;
@@ -77,10 +202,10 @@ int createConnect(char* serverip,int port){
 		return -1;
     }
     dest.sin_family = AF_INET;
-    dest.sin_port = htons(atoi(port));
+    dest.sin_port = htons(port);
     if (inet_aton(serverip, (struct in_addr *) &dest.sin_addr.s_addr) == 0)
     {
-        perror(argv[1]);
+        perror(serverip);
         exit(errno);
     }
     if(connect(sockfd, (struct sockaddr *) &dest, sizeof(dest)) != 0)
@@ -158,11 +283,12 @@ void timetoping(void* param)
             else
                 return;
         }
-        sendping(g_sock);
+        if(g_sock != -1)
+	        sendping(g_sock);
     }
 }
 
-int message_processer(char* serverip,int port,char* drivceId)
+int message_processer(char* serverip,int port,char* drivceId,char* tempPath,void* ptr)
 {
     int isQuit = 0;
     while(isQuit == 0)
@@ -191,7 +317,7 @@ int message_processer(char* serverip,int port,char* drivceId)
         //bzero(&totoken_temp,sizeof(totoken_temp));
 
         //strcpy(totoken_temp,argv[4]);
-        sockfd = createConnect(argv[1],atoi(argv[2]));
+        sockfd = createConnect(serverip,port);
         if(sockfd == -1)
         	return -1;
         g_sock = sockfd;
@@ -253,14 +379,20 @@ int message_processer(char* serverip,int port,char* drivceId)
                                 char* message = NULL;
                                 int ret = parseServerMessage(sockfd,buff,
                                                              &header,fromdrivceId,
-															 messageid,&message,len,"/tmp");
+															 messageid,&message,len,tempPath);
                                 if(ret < 0)
                                 {
                                     printf("has error\n");
                                 }
-                                printf("%s,%s,%s",messageid,fromdrivceId,message);
+                                //printf("%s,%s,%s",messageid,fromdrivceId,message);
+                                if(header.command == MESSAGE_TYPE_TXT){
+                                	recvData(messageid,fromdrivceId,message,ptr);
+                                }
+                                else{
+                                	recvFile(messageid,fromdrivceId,message,ptr);
+                                }
                                 free(message);
-                                char* retbuf = createClientHeader(COMMAND_YES,MESSAGE_TYPE_NULL,(unsigned char)1);
+                                char* retbuf = createClientHeader(COMMAND_YES,MESSAGE_TYPE_NULL,0x1);
                                 ret = send(sockfd,retbuf,sizeof(client_header_2_t),0);
                                 if(ret < 0)
                                 {
@@ -291,53 +423,46 @@ int message_processer(char* serverip,int port,char* drivceId)
             }
         }
         close(sockfd);
-        pthread_mutex_init(&st.lock, NULL);
-        st.isexit = 1;
-        pthread_mutex_unlock(&st.lock);
-        pthread_join(thread_id,0);
+        //pthread_mutex_init(&st.lock, NULL);
+        //st.isexit = 1;
+        //pthread_mutex_unlock(&st.lock);
+        //pthread_join(thread_id,0);
     }
     return 0;
 }
 void* client_thread(void* param){
 	client_config_t* config = param;
-	message_processer(config->serverip,config->port,config->drivceId);
+	message_processer(config->serverip,config->port,config->drivceId,config->tempPath,config->ptr);
 }
-/*
-int main(int argc,char** argv){
-	push_message_info_t info;
-	info.retrycount=0;
-	info.state=0;
-	info.messagetype=MESSAGE_TYPE_TXT;
-	strcpy(info.messageid , "hahah");
-	strcpy(info.to,"kuer");
-	strcpy(info.orgFileName , "");
-	strcpy(info.sendtime,"2015");
-	info.sendtime_l = 131;
-	strcpy(info.form,"test");
-	info.content = malloc(20);
-	strcpy(info.content,"111");
-	info.timeout = 100;	
-	int i =0;
-	for(i=0;i<10;i++)
-		createServerMessagereply(-1,1,&info,"");
-}
-*/
-void start_client(char* servreip,char* port,char* drivceId){
+
+int start_client(char* serverip,int port,char* drivceId,char* tempPath,void* ptr){
    	client_config_t config;
 	strcpy(config.serverip,serverip);
 	config.port = port;
 	strcpy(config.drivceId,drivceId);
+	strcpy(config.tempPath,tempPath);
+	config.ptr = ptr;
 	pthread_mutex_init(&lock,NULL);
-    pthread_t thr_id;
-    if (pthread_create(&thr_id, NULL, (void *) client_thread, &config) != 0)
+
+    if (pthread_create(&core_thread_id, NULL, (void *) client_thread, &config) != 0)
     {
         printf("%spthread_create failed, errno%d, error%s\n", __FUNCTION__,
                errno, strerror(errno));
-        exit(1);
-    }
-     pthread_t thread_id;
-     pthread_create(&thread_id,NULL,(void *) timetoping,NULL);
+		return -1;
+    }    
+	if(pthread_create(&ping_thread_id,NULL,(void *) timetoping,NULL) != 0){
+		printf("%spthread_create failed, errno%d, error%s\n", __FUNCTION__,
+	   errno, strerror(errno));
+		return -1;
+	}
 }
+void sendMessage(char* clientMessageid,
+							char* message,
+							int messagetype,
+							list_t* sendtoList){
+								
+}
+							
 int main(int argc, char **argv)
 {
     if (argc <= 3)
@@ -361,7 +486,10 @@ int main(int argc, char **argv)
     totokenLength = split(totoken_temp,tempArgv,"_");
     free(tempArgv);
     
-    start_client(argv[1],atoi(argv[2]),argv[3]);
+    if(start_client(argv[1],atoi(argv[2]),argv[3],"/tmp",NULL)==-1){
+    	printf("create connect error\n");
+    	exit(0);	
+    }
    	
     char buf[MAXBUF];
     char username[255]={0};
@@ -465,6 +593,27 @@ int main(int argc, char **argv)
         }
 
     }
-    pthread_join(thr_id,NULL);
+    //pthread_join(thr_id,NULL);
 }
 
+
+/*
+int main(int argc,char** argv){
+	push_message_info_t info;
+	info.retrycount=0;
+	info.state=0;
+	info.messagetype=MESSAGE_TYPE_TXT;
+	strcpy(info.messageid , "hahah");
+	strcpy(info.to,"kuer");
+	strcpy(info.orgFileName , "");
+	strcpy(info.sendtime,"2015");
+	info.sendtime_l = 131;
+	strcpy(info.form,"test");
+	info.content = malloc(20);
+	strcpy(info.content,"111");
+	info.timeout = 100;	
+	int i =0;
+	for(i=0;i<10;i++)
+		createServerMessagereply(-1,1,&info,"");
+}
+*/
