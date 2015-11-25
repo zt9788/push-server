@@ -1,11 +1,9 @@
 #gcc -g server.c log.c md5.c util.c readconf.c thread_pool.c redis_pool.c -DDEBU
-#G -D__EPOLL__ -o server -lpthread -L/usr/local/lib/ -lhiredis -luuid -lrt -lm
+#G -D__EPOLL__ -o server -lpthread -L/usr/local/lib/ -lhiredis -luuid -lrt
 CC=gcc
 CFLAGS=-g#-Wall -g
-LDFLAGS=-DDEBUG -D__EPOLL__ -lpthread -L/usr/local/lib/ -lhiredis -luuid -lrt -lm
-all:clean server.o log.o list.o list_iterator.o list_node.o md5.o extended_storage.o extended_protocol.o\
-	 messagestorage.o util.o readconf.o thread_pool.o socket_plush.o redis_pool.o daemon.o parse_command.o \
- 	 cJSON.o leak_detector_c.o pushserver
+LDFLAGS=-DDEBUG -D__EPOLL__ -lpthread -L/usr/local/lib/ -lhiredis -luuid -lrt 
+all:clean server.o log.o list.o list_iterator.o list_node.o md5.o messagestorage.o util.o readconf.o thread_pool.o socket_plush.o redis_pool.o daemon.o parse_command.o leak_detector_c.o pushserver
 .PHONY : all
 #server.o:sc.h
 #${CC}  ${CFLAGS}  -c server.c  ${LDFLAGS}
@@ -33,10 +31,6 @@ parse_command.o:parse_command.h
 	${CC} ${CFLAGS} -c parse_command.c ${LDFLAGS}
 socket_plush.o:socket_plush.h
 	${CC} ${CFLAGS} -c socket_plush.c ${LDFLAGS}
-extended_protocol.o:extended_protocol.h	
-	${CC} ${CFLAGS} -c extended_protocol.c ${LDFLAGS}	
-cJSON.o:cJSON.h
-	${CC} ${CFLAGS} -c cJSON.c ${LDFLAGS}	
 	
 list.o:list.h
 	${CC} -O3 -std=c99 -Wall -Wextra -Ideps -c list.c
@@ -44,12 +38,9 @@ list_iterator.o:list.h
 	${CC} -O3 -std=c99 -Wall -Wextra -Ideps -c list_iterator.c
 list_node.o:list.h
 	${CC} -O3 -std=c99 -Wall -Wextra -Ideps -c list_node.c
-
-extended_storage.o:extended_storage.h
-	${CC} ${CFLAGS} -c extended_storage.c ${LDFLAGS}	
 	
 pushserver:
-	${CC} ${CFLAGS}  server.o messagestorage.o cJSON.o extended_protocol.o extended_storage.o list.o list_iterator.o list_node.o daemon.o log.o leak_detector_c.o md5.o util.o socket_plush.o readconf.o thread_pool.o redis_pool.o parse_command.o -o pushserver ${LDFLAGS}
+	${CC} ${CFLAGS}  server.o messagestorage.o list.o list_iterator.o list_node.o daemon.o log.o leak_detector_c.o md5.o util.o socket_plush.o readconf.o thread_pool.o redis_pool.o parse_command.o -o pushserver ${LDFLAGS}
 
 clean:  
 	rm  -rf  *.o  

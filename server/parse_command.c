@@ -32,7 +32,7 @@ SOFTWARE.
 #define MAX_DRIVCEID_LENGTH 64
 
 #define __DEBUG(format, ...) printf("FILE: "__FILE__", LINE: %d: "format"/n", __LINE__, ##__VA_ARGS__)
-int createClientMessage(int sock,unsigned char messsagetype,unsigned	char clienttype,
+int createClientMessage(int sock,unsigned	char messsagetype,unsigned	char clienttype,
 						short delytime,
 						char* contentOrFileName,short len,list_t *sendto){
 	client_header_2_t* header = createClientHeader(COMMAND_MESSAGE,messsagetype,clienttype);
