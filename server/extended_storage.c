@@ -296,7 +296,7 @@ user_info_t* userLogin(char* username,char* drivceId,user_info_t** outUserinfo){
 	strncpy(userinfo->userid,userid,strlen(userid));
 	strncpy(userinfo->username,username,strlen(username));
 	*outUserinfo = userinfo;
-	returnRedis(redis);
+	returnRedis(redisId);
 	return userinfo;
 }
 void userLogout(char* userid){
