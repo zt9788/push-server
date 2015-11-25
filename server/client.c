@@ -78,7 +78,7 @@ list_t* sendlist;
 
 
 
-void* send_Message(void* data)
+void* send_message_processer(void* data)
 {
 //	sendmessage_stuct_t* sst = args;
 	//JNIEnv* env = (JNIEnv*)sst->env;
@@ -452,6 +452,11 @@ int start_client(char* serverip,int port,char* drivceId,char* tempPath,void* ptr
 		return -1;
     }    
 	if(pthread_create(&ping_thread_id,NULL,(void *) timetoping,NULL) != 0){
+		printf("%spthread_create failed, errno%d, error%s\n", __FUNCTION__,
+	   errno, strerror(errno));
+		return -1;
+	}
+	if(pthread_create(&send_thread_id,NULL,(void *) send_message_processer,NULL) != 0){
 		printf("%spthread_create failed, errno%d, error%s\n", __FUNCTION__,
 	   errno, strerror(errno));
 		return -1;
