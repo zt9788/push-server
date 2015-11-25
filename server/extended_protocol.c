@@ -27,6 +27,9 @@ SOFTWARE.
 #include <error.h>
 #include <errno.h>
 #include <fcntl.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 #include "list.h"
 #include "util.h"
 #include "sc.h"
@@ -231,7 +234,7 @@ int parseServerUserLogin(int sock,void* buf,int* outResult){
 	cJSON* json = cJSON_Parse(txt);
 	if(!json){
 		free(txt);
-		return NULL;
+		return -1;
 	}
 	char* str = cJSON_GetObjectItem(json,"username")->valuestring;	
 	char* username = malloc(strlen(str)+1);
@@ -360,7 +363,7 @@ int parseServerUserFindUser(int sock,void* buf,int* outResult){
 	cJSON* json = cJSON_Parse(txt);
 	if(!json){
 		free(txt);
-		return NULL;
+		return -1;
 	}
 	int isSucess = cJSON_GetObjectItem(json,"result")->valueint;
 	char* username = NULL;

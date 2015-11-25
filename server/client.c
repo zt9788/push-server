@@ -97,13 +97,13 @@ void* send_Message(void* data)
 			list_node_t* node = list_rpop(sendlist);
 			send_message_t* sendmessage = node->val;
             int len = 0;
-            int length = sendmessage->len;
-            void* buff = sendmessage->buff;            
+//            int length = sendmessage->len;
+//            void* buff = sendmessage->me;            
             //LOGI("total filesize %d",length);
             pthread_mutex_lock(&lock);
             createClientMessage(g_sock,
 								CLIENT_TYPE,sendmessage->messagetype,
-								sendmessage->delytime,sendmessage->buff,sendmessage->sendto);
+								sendmessage->delytime,sendmessage->message,sendmessage->sendto);
             /*
             if(length>MAXBUF)
             {
@@ -176,8 +176,9 @@ send_error2:
 			else
 				sendMessageResponse(sendmessage->messageid,NULL,1,"",data);
 				
-            free(sendmessage->buff);
-            free(sendmessage->messageid);
+            free(sendmessage->message);
+            list_destroy(sendmessage->sendto);
+            //free(sendmessage->messageid);
             free(sendmessage);
             //LOGI("1eventList error！errno:%d，error msg: '%s'\n", errno, strerror(errno));
         }
@@ -456,13 +457,14 @@ int start_client(char* serverip,int port,char* drivceId,char* tempPath,void* ptr
 		return -1;
 	}
 }
+/*
 void sendMessage(char* clientMessageid,
 							char* message,
 							int messagetype,
 							list_t* sendtoList){
 								
 }
-							
+*/					
 int main(int argc, char **argv)
 {
     if (argc <= 3)
@@ -576,9 +578,9 @@ int main(int argc, char **argv)
         	pthread_mutex_lock(&lock);
         }			
         if(isfile == 0)
-            len = createClientMessage(g_sock,MESSAGE_TYPE_TXT,1,0,buf,1,send_list);
+            len = createClientMessage(g_sock,MESSAGE_TYPE_TXT,1,0,buf,send_list);
         else
-            len = createClientMessage(g_sock,MESSAGE_TYPE_FILE,1,0,filepath,1,send_list);
+            len = createClientMessage(g_sock,MESSAGE_TYPE_FILE,1,0,filepath,send_list);
         recvReturn(g_sock);
 		pthread_mutex_unlock(&lock);
         list_destroy(send_list);
