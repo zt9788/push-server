@@ -485,6 +485,7 @@ int createServerMessage(int sock,int serverid,push_message_info_t* info,char* tm
 	int total = 0;
 	server_header_2_t * header = createServerHeader(serverid,COMMAND_MESSAGE,info->messagetype);
 	//count length
+	//TODO submesageid to messageid
 	total = sizeof(server_header_2_t)+sizeof(uint32_t)+sizeof(uint16_t) + 
 			strlen(info->to)+sizeof(uint16_t)+strlen(info->messageid);	
 

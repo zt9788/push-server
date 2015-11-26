@@ -57,6 +57,7 @@ void print_push_info(push_message_info_t* info){
 		printf(">> state = %d\n",info->state);
 		printf(">> messagetype = %d\n",info->messagetype);
 		printf(">> messageid = %s\n",info->messageid);
+		printf(">> submessageid = %s\n",info->submessageid);
 		printf(">> to = %s\n",info->to);
 		printf(">> orgFileName = %s\n",info->orgFileName);
 		printf(">> sendtime = %s\n",info->sendtime);
@@ -139,39 +140,42 @@ push_message_info_t* getmessageinfo(char* pushid,push_message_info_t** info_in)
 	reply = redisCommand(redis,"hgetall %s",pushid);
 	if (reply->type == REDIS_REPLY_ARRAY) {
         for (j = 0; j < reply->elements-1; j++) {
-        	if(strncasecmp(reply->element[j]->str,"messageid",strlen("messageid")) == 0){//1
-       			strcpy(info->messageid ,reply->element[j+1]->str);
+        	if(strncasecmp(reply->element[j]->str,"submessageid",strlen("submessageid")) == 0){//1
+       			strcpy(info->submessageid ,reply->element[j+1]->str);
 				j++;	
-	        }else if(strncasecmp(reply->element[j]->str,"clientport",strlen("clientport")) == 0){//2
+			}else if(strncasecmp(reply->element[j]->str,"messageid",strlen("messageid")) == 0){//2
+       			strcpy(info->messageid ,reply->element[j+1]->str);
+				j++;
+	        }else if(strncasecmp(reply->element[j]->str,"clientport",strlen("clientport")) == 0){//3
        			info->retrycount = atoi(reply->element[j+1]->str);
 				j++;	
-	        }else if(strncasecmp(reply->element[j]->str,"sendtime",strlen("sendtime")) == 0){//3
+	        }else if(strncasecmp(reply->element[j]->str,"sendtime",strlen("sendtime")) == 0){//4
        			strcpy(info->sendtime,reply->element[j+1]->str);
 				j++;	
-	        }else if(strncasecmp(reply->element[j]->str,"to",strlen("to")) == 0){//4
+	        }else if(strncasecmp(reply->element[j]->str,"to",strlen("to")) == 0){//5
        			strcpy(info->to,reply->element[j+1]->str);
 				j++;	
-	        }else if(strncasecmp(reply->element[j]->str,"state",strlen("state")) == 0){//5
+	        }else if(strncasecmp(reply->element[j]->str,"state",strlen("state")) == 0){//6
        			info->state = atoi(reply->element[j+1]->str);
 				j++;	
-	        }else if(strncasecmp(reply->element[j]->str,"messagetype",strlen("messagetype")) == 0){//6
+	        }else if(strncasecmp(reply->element[j]->str,"messagetype",strlen("messagetype")) == 0){//7
        			info->messagetype = atoi(reply->element[j+1]->str);
 				j++;	
-	        }else if(strncasecmp(reply->element[j]->str,"orgFileName",strlen("orgFileName")) == 0){//7
+	        }else if(strncasecmp(reply->element[j]->str,"orgFileName",strlen("orgFileName")) == 0){//8
        			strcpy(info->orgFileName,reply->element[j+1]->str);
 				j++;	
-	        }else if(strncasecmp(reply->element[j]->str,"form",strlen("form")) == 0){//8
+	        }else if(strncasecmp(reply->element[j]->str,"form",strlen("form")) == 0){//9
        			strcpy(info->form,reply->element[j+1]->str);
 				j++;	
-	        }else if(strncasecmp(reply->element[j]->str,"fromip",strlen("fromip")) == 0){//9
+	        }else if(strncasecmp(reply->element[j]->str,"fromip",strlen("fromip")) == 0){//10
        			strcpy(info->fromip,reply->element[j+1]->str);
 				j++;	
-	        }else if(strncasecmp(reply->element[j]->str,"content",strlen("content")) == 0){//10
+	        }else if(strncasecmp(reply->element[j]->str,"content",strlen("content")) == 0){//11
 	        	info->content = malloc(strlen(reply->element[j+1]->str)+1);
 	        	memset(info->content,0,strlen(reply->element[j+1]->str)+1);
        			strcpy(info->content,reply->element[j+1]->str);
 				j++;	
-	        }else if(strncasecmp(reply->element[j]->str,"timeout",strlen("timeout")) == 0){//11
+	        }else if(strncasecmp(reply->element[j]->str,"timeout",strlen("timeout")) == 0){//12
        			info->timeout = atoi(reply->element[j+1]->str);
 				j++;	
 	        }	        
@@ -218,7 +222,7 @@ push_message_info_t* putmessageinfo2(char* messageid,char* message,
     push_message_info_t* info = *info_in;
     if(info == NULL)
 		info = malloc(sizeof(push_message_info_t));
-    strcpy(info->messageid,guid);
+    strcpy(info->submessageid,guid);
     client_info_t* clientinfo = NULL;
     getClientInfo(&clientinfo,tochar); 
     redisAppendCommand(redis,"sadd %s %s",messageid,guid);//13
@@ -267,12 +271,14 @@ push_message_info_t* putmessageinfo2(char* messageid,char* message,
     info->retrycount = 0;
     redisAppendCommand(redis,"hset %s messagetype %d",guid,messagetype);//9
     info->messagetype = messagetype;
-    redisAppendCommand(redis,"hset %s messageid %s",guid,guid);//10
-    strcpy(info->messageid,guid);
+    redisAppendCommand(redis,"hset %s submessageid %s",guid,guid);//10
+    strcpy(info->submessageid,guid);
+    redisAppendCommand(redis,"hset %s messageid %d",guid,messageid);//13
+	strcpy(info->messageid,messageid);
     redisAppendCommand(redis,"EXPIRE %s %d",guid,timeout);//11
     info->timeout = timeout;
     int x=0;				
-	for(x=0;x<13;x++){
+	for(x=0;x<14;x++){
 		redisGetReply(redis,(void**)&reply);
         freeReplyObject(reply);//1	
 	} 
@@ -305,7 +311,7 @@ push_message_info_t* putmessageinfo(char* message,
     push_message_info_t* info = *info_in;
     if(info == NULL)
 		info = malloc(sizeof(push_message_info_t));
-    strcpy(info->messageid,guid);
+    strcpy(info->submessageid,guid);
     client_info_t* clientinfo = NULL;
     getClientInfo(&clientinfo,tochar); 
     if(clientinfo != NULL){
@@ -352,8 +358,9 @@ push_message_info_t* putmessageinfo(char* message,
     info->retrycount = 0;
     redisAppendCommand(redis,"hset %s messagetype %d",guid,header->messagetype);//9
     info->messagetype = header->messagetype;
-    redisAppendCommand(redis,"hset %s messageid %s",guid,guid);//10
-    strcpy(info->messageid,guid);
+    //TODO
+    redisAppendCommand(redis,"hset %s submessageid %s",guid,guid);//10
+    strcpy(info->submessageid,guid);
     redisAppendCommand(redis,"EXPIRE %s %d",guid,timeout);//11
     info->timeout = timeout;
     int x=0;				
@@ -565,10 +572,10 @@ void messageIsSendOK2(push_message_info_t* messageinfo,int serverid){
 	int redisId=0;    
     redisContext* redis = getRedis(&redisId);
 	redisReply* reply;
-    redisAppendCommand(redis,"hset %s state 1",messageinfo->messageid); //1
-    redisAppendCommand(redis,"lrem pushlist%d 0 %s",serverid,messageinfo->messageid); //2
-    redisAppendCommand(redis,"lrem %s_noread 0 %s",messageinfo->to,messageinfo->messageid);//3
-    redisAppendCommand(redis,"lpush %s_read %s",messageinfo->to,messageinfo->messageid);//4
+    redisAppendCommand(redis,"hset %s state 1",messageinfo->submessageid); //1
+    redisAppendCommand(redis,"lrem pushlist%d 0 %s",serverid,messageinfo->submessageid); //2
+    redisAppendCommand(redis,"lrem %s_noread 0 %s",messageinfo->to,messageinfo->submessageid);//3
+    redisAppendCommand(redis,"lpush %s_read %s",messageinfo->to,messageinfo->submessageid);//4
     int x = 0;
     for(x=0;x<4;x++){
     	redisGetReply(redis,(void**)&reply);
@@ -584,10 +591,10 @@ void messageIsSendOK(push_message_info_t* messageinfo,client_info_t	* clientinfo
 	int redisId=0;    
     redisContext* redis = getRedis(&redisId);
 	redisReply* reply;
-    redisAppendCommand(redis,"hset %s state 1",messageinfo->messageid); //1
-    redisAppendCommand(redis,"lrem pushlist%d 0 %s",clientinfo->serverid,messageinfo->messageid); //2
-    redisAppendCommand(redis,"lrem %s_noread 0 %s",messageinfo->to,messageinfo->messageid);//3
-    redisAppendCommand(redis,"lpush %s_read %s",messageinfo->to,messageinfo->messageid);//4
+    redisAppendCommand(redis,"hset %s state 1",messageinfo->submessageid); //1
+    redisAppendCommand(redis,"lrem pushlist%d 0 %s",clientinfo->serverid,messageinfo->submessageid); //2
+    redisAppendCommand(redis,"lrem %s_noread 0 %s",messageinfo->to,messageinfo->submessageid);//3
+    redisAppendCommand(redis,"lpush %s_read %s",messageinfo->to,messageinfo->submessageid);//4
     int x = 0;
     for(x=0;x<4;x++){
     	redisGetReply(redis,(void**)&reply);

@@ -417,7 +417,7 @@ void* sendMessage(void* args)
     }
     if(ret<=0)
     {
-        saveInNoread(sendinfo->client->drivceId,sendinfo->info->messageid);
+        saveInNoread(sendinfo->client->drivceId,sendinfo->info->submessageid);
     }
     //pthread_mutex_unlock(&sendinfo->client->opt_lock);
     return NULL;

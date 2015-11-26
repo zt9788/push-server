@@ -30,6 +30,7 @@ typedef struct push_message_info{
 	int state;
 	int messagetype;	
 	char messageid[64];
+	char submessageid[64];
 	char to[64];/*to drivceId*/
 	char orgFileName[255];		
 	char sendtime[50];
