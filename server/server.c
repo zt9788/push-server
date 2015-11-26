@@ -675,12 +675,16 @@ void* read_thread_function(void* client_t)
         }
         else if(header.command == COMMAND_MESSAGE)
         {
+        	char messsageid[64]={0};
             int ret = parseClientMessage(sockfd,bufs,&header,client->drivceId,client->token,n,
-                                         inet_ntoa(client->addr.sin_addr),system_config.tempPath);
+                                         inet_ntoa(client->addr.sin_addr),system_config.tempPath,messsageid);
             if(ret < 0)
                 goto recv_error_close_client;
+            /*
             server_header_2_t* sheader = createServerHeader(system_config.serverid,COMMAND_YES,MESSAGE_TYPE_NULL);
             ret = send(sockfd,sheader,sizeof(server_header_2_t),0);
+            */
+            ret = createServerMessageReply(sockfd,system_config.serverid,messsageid);
             if(ret <= 0)
                 goto recv_error_close_client;
         }
@@ -822,7 +826,7 @@ int send_pushlist_message(
     CLIENT* client)
 {
 	int ret = 0;
-	ret = createServerMessagereply(client->fd,system_config.serverid,messageinfo,system_config.tempPath);
+	ret = createServerMessage(client->fd,system_config.serverid,messageinfo,system_config.tempPath);
 	if(ret <= 0)
 		return 0;
     //wait for client return

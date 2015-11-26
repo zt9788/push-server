@@ -55,7 +55,7 @@ int createClientMessage(int sock,unsigned	char messsagetype,unsigned	char client
 						short delytime,
 						char* contentOrFileName,list_t* sendto);
 int parseClientMessage(int sockfd,void* bufs,client_header_2_t* header,char* driveceId,
-		char* token,int recvlen,char* fromip,char* tempPath);
+		char* token,int recvlen,char* fromip,char* tempPath,char* outMessageid);
 client_header_2_t* createClientHeader(unsigned char command,unsigned char messagetype,unsigned char clienttype);
 server_header_2_t* createServerHeader(int serverid,unsigned char command,unsigned char messagetype);
 server_config_to_client_t* createServer2ClientConfig(server_config_to_client_t* config,
@@ -66,8 +66,10 @@ void* createServerBuffforMessage(void* bufs,
 					int serverid,
 					push_message_info_t* info,
 					char* tmpPath);
-int createServerMessagereply(int sock,int serverid,push_message_info_t* info,char* tmpPath);
+int createServerMessage(int sock,int serverid,push_message_info_t* info,char* tmpPath);
 
 int parseServerMessage(int sockfd,void* bufs,server_header_2_t* header,
 		char* fromdriveceId,char* messageid,char** content,int recvlen,char* tempPath);
+		
+int createServerMessageReply(int sock,int serverid,char* messageid);		
 #endif /* !PARSE_COMMADN_H */

@@ -109,7 +109,7 @@ int createClientMessage(int sock,unsigned	char messsagetype,unsigned	char client
 	return sendlen;
 }
 int parseClientMessage(int sockfd,void* bufs,client_header_2_t* header,char* driveceId,
-		char* token,int recvlen,char* fromip,char* tempPath){
+		char* token,int recvlen,char* fromip,char* tempPath,char* outMessageid){
 	char* buf = bufs;
 	int i = 0;
 	//char fileName[255]= {0};
@@ -201,12 +201,14 @@ int parseClientMessage(int sockfd,void* bufs,client_header_2_t* header,char* dri
 		}
 		fclose(flogx);
 	}
+	//char messageid[64]={0};
+	createGUID(outMessageid);
 	for(i=0;i<sendtocount;i++){
 		push_message_info_t* info = NULL;
 #ifndef CLIENTMAKE	
 		//TODO have no dely time to save in redis
 		printf("need to save user %s\n",sendto[i]);
-		putmessageinfo2(contentOrFileName,sendto[i],contentOrFileName,
+		putmessageinfo2(outMessageid,contentOrFileName,sendto[i],contentOrFileName,
 					newFilename,240,driveceId,
 					fromip,header->messagetype,0,&info);
 		if(info != NULL){
@@ -319,6 +321,8 @@ void* createServerHelo(int serverid,unsigned char isOpenMessageResponse,unsigned
 	free(header);
 	return buf;
 }
+
+
 
 server_header_2_t* createServerHeader(int serverid,unsigned char command,unsigned char messagetype){
 	server_header_2_t * header = malloc(sizeof(server_header_2_t));
@@ -476,7 +480,7 @@ int parseServerMessage(int sockfd,void* bufs,server_header_2_t* header,
 /********************
 	it is do not have file content in return buffer
 *********************/
-int createServerMessagereply(int sock,int serverid,push_message_info_t* info,char* tmpPath){
+int createServerMessage(int sock,int serverid,push_message_info_t* info,char* tmpPath){
 	unsigned char* retbuf = NULL;
 	int total = 0;
 	server_header_2_t * header = createServerHeader(serverid,COMMAND_MESSAGE,info->messagetype);
@@ -556,4 +560,17 @@ int createServerMessagereply(int sock,int serverid,push_message_info_t* info,cha
 	//TODO
 	free(retbuf);
 	return sumlen;
+}
+int createServerMessageReply(int sock,int serverid,char* messageid){	
+	server_header_2_t* sheader = createServerHeader(serverid,COMMAND_YES,MESSAGE_TYPE_NULL);
+ 	int length = sizeof(server_header_2_t)+sizeof(uint16_t)+strlen(messageid);
+ 	sheader->total = length;
+ 	void* buff = malloc(length);
+ 	memcpy(buff,sheader,sizeof(server_header_2_t));
+ 	buff += sizeof(server_header_2_t);
+ 	*(uint16_t*)buff = htons(strlen(messageid));
+ 	buff += sizeof(uint16_t);
+ 	memcpy(buff,messageid,strlen(messageid));
+ 	int ret = send(sock,buff,length,0);
+ 	return ret;
 }

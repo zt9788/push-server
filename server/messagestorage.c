@@ -195,7 +195,7 @@ void freeClientInfo(client_info_t* clientinfo){
 		free(clientinfo);
 	clientinfo = NULL;
 }
-push_message_info_t* putmessageinfo2(char* message,
+push_message_info_t* putmessageinfo2(char* messageid,char* message,
 									char* tochar,
 									char* fileName,
 									char* newFilename,
@@ -205,9 +205,12 @@ push_message_info_t* putmessageinfo2(char* message,
 									int messagetype,
 									int priority,
 									push_message_info_t** info_in){
-	int redisId=0;    
+	int redisId=0;
     redisContext* redis = getRedis(&redisId);
     redisReply* reply = NULL;
+    if(messageid == NULL || strlen(messageid) == 0){
+    	createGUID(messageid);
+    }
 	char guid[64]={0};
 	createGUID(guid);
     char time[255];
@@ -218,6 +221,8 @@ push_message_info_t* putmessageinfo2(char* message,
     strcpy(info->messageid,guid);
     client_info_t* clientinfo = NULL;
     getClientInfo(&clientinfo,tochar); 
+    redisAppendCommand(redis,"sadd %s %s",messageid,guid);//13
+    redisAppendCommand(redis,"EXPIRE %s %d",messageid,timeout);//14
     if(clientinfo != NULL){
     	if(priority == 0){
 	    	redisAppendCommand(redis,"lpush pushlist%d %s",clientinfo->serverid,guid);//1	
@@ -267,7 +272,7 @@ push_message_info_t* putmessageinfo2(char* message,
     redisAppendCommand(redis,"EXPIRE %s %d",guid,timeout);//11
     info->timeout = timeout;
     int x=0;				
-	for(x=0;x<11;x++){
+	for(x=0;x<13;x++){
 		redisGetReply(redis,(void**)&reply);
         freeReplyObject(reply);//1	
 	} 
