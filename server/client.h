@@ -53,11 +53,10 @@ void* send_message_processer(void* data);
 int message_processer(char* serverip,int port,char* drivceId,char* tempPath,void* ptr);
 int createConnect(char* serverip,int port);
 void* ping_process(void* data);
-
-//public function
 void sendhelo(int sockfd,char* drivceId);
 void sendping(int sockfd);
-//int message_processer(char* serverip,int port,char* drivceId,char* tempPath);
+
+//public function
 int start_client(char* servreip,int port,char* drivceId,char* tempPath,void* ptr);
 void stop_client();
 
@@ -66,6 +65,7 @@ void sendMessage(char* clientMessageid,int delytime,
 							int messagetype,
 							list_t* sendtoList);							
 //------------this is block function-------------
+//----------and if you are android you need call it in jni functoin
 
 user_info_t* user_register(char* userName,
 			char* password/* the password is nothing to do*/);

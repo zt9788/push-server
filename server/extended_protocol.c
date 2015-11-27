@@ -42,7 +42,7 @@ SOFTWARE.
 //header byte[2]   messages
 //        lenth    username
 
-char* parseServerUserReg(int sock,void* buf,char* outResult){
+user_info_t	* parseServerUserReg(int sock,void* buf,int* outResult){
 	uint16_t length = ntohs(*(uint16_t*)buf);
 	buf += sizeof(uint16_t);
 	char *txt = malloc(length);
@@ -53,18 +53,20 @@ char* parseServerUserReg(int sock,void* buf,char* outResult){
 		free(txt);
 		return NULL;
 	}
-	char* str = cJSON_GetObjectItem(json,"username")->valuestring;	
-	char* username = malloc(strlen(str)+1);
-	strncpy(username,str,strlen(str));	
-	//free(str);
-	str = cJSON_GetObjectItem(json,"userid")->valuestring;	
-	int isSucess = cJSON_GetObjectItem(json,"result")->valueint;	
-	//char* userid = malloc(strlen(str)+1);
-	if(isSucess)
-		strncpy(outResult,str,strlen(str));			
+	int isSucess = cJSON_GetObjectItem(json,"result")->valueint;			
+	user_info_t* info = NULL;
+	if(isSucess){	
+		info = malloc(sizeof(user_info_t));			
+		char* str = cJSON_GetObjectItem(json,"username")->valuestring;
+		strncpy(info->username,str,strlen(str));	
+		//free(str);
+		str = cJSON_GetObjectItem(json,"userid")->valuestring;	
+		strncpy(info->userid,str,strlen(str));		
+	}	
+	*outResult = isSucess;
 	free(txt);
 	cJSON_Delete(json);
-	return outResult;
+	return info;
 }
 int createServerUserReg(int sock,int serverid,int isSuccess,char* userid,char* username){
 	server_header_2_t* header = createServerHeader(serverid,COMMAND_OTHER_MESSAGE,MESSAGE_TYPE_USER_REG);
@@ -238,18 +240,18 @@ user_info_t* parseServerUserLogin(int sock,void* buf,int* outResult){
 	}	
 	int isSucess = cJSON_GetObjectItem(json,"result")->valueint;			
 	user_info_t* info = NULL;
-	if(isSucess){				
+	if(isSucess){	
+		info = malloc(sizeof(user_info_t));			
 		char* str = cJSON_GetObjectItem(json,"username")->valuestring;
 		strncpy(info->username,str,strlen(str));	
 		//free(str);
 		str = cJSON_GetObjectItem(json,"userid")->valuestring;	
-		strncpy(info->userid,str,strlen(str));
-		*outResult = isSucess;	
+		strncpy(info->userid,str,strlen(str));	
 	}
-
+	*outResult = isSucess;	
 	free(txt);
 	cJSON_Delete(json);
-	return isSucess;
+	return info;
 }
 
 
@@ -357,7 +359,7 @@ int createServerUserFindUser(int sock,int clienttype,user_info_t* userinfo){
 	return ret;	
 }
 
-int parseServerUserFindUser(int sock,void* buf,int* outResult){
+user_info_t* parseServerUserFindUser(int sock,void* buf,int* outResult){
 	uint16_t length = ntohs(*(uint16_t*)buf);
 	buf += sizeof(uint16_t);
 	char *txt = malloc(length);
@@ -366,8 +368,29 @@ int parseServerUserFindUser(int sock,void* buf,int* outResult){
 	cJSON* json = cJSON_Parse(txt);
 	if(!json){
 		free(txt);
-		return -1;
+		return NULL;
+	}	
+	int isSucess = cJSON_GetObjectItem(json,"result")->valueint;			
+	user_info_t* info = NULL;
+	if(isSucess){	
+		info = malloc(sizeof(user_info_t));			
+		char* str = cJSON_GetObjectItem(json,"username")->valuestring;
+		strncpy(info->username,str,strlen(str));	
+		str = cJSON_GetObjectItem(json,"userid")->valuestring;	
+		strncpy(info->userid,str,strlen(str));	
+		//
+		info->drivces = list_new();
+		CJSON* arr = cJSON_GetObjectItem(json,"driveces");
+		int i = 0;
+		for(i=0;i<cJSON_GetArraySize(arr);i++){
+			str = cJSON_GetArrayItem(arr,i)->valuestring;
+			char* drivceId = malloc(strlen(str)+1);
+			list_lpush(info->drivces,list_node_new(drivceId));
+		}
+		info->drivces->free = free;		
 	}
+	*outResult = isSucess;	
+	/*
 	int isSucess = cJSON_GetObjectItem(json,"result")->valueint;
 	char* username = NULL;
 	char* str = cJSON_GetObjectItem(json,"username")->valuestring;	
@@ -379,6 +402,7 @@ int parseServerUserFindUser(int sock,void* buf,int* outResult){
 	//str = cJSON_GetObjectItem(json,"userid")->valuestring;	
 		
 	//char* userid = malloc(strlen(str)+1);
+	*/
 	*outResult = isSucess;	
 	free(txt);
 	cJSON_Delete(json);

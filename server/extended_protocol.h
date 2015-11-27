@@ -35,7 +35,7 @@ SOFTWARE.
 
 int createServerUserReg(int sock,int serverid,int isSuccess,char* userid,char* username);
 int createClientUserReg(int sock,int clienttype,char* username);
-char* parseServerUserReg(int sock,void* buf,char* outResult);
+user_info_t* parseServerUserReg(int sock,void* buf,int* outResult);
 char* parseClientUserReg(int sock,void* buf,int serverid,char* drivceId,int* outResult);
 
 user_info_t* parseServerUserLogin(int sock,void* buf,int* outResult);
@@ -46,7 +46,7 @@ int createClientUserLogin(int sock,int clienttype,char* username);
 int createClientUserFindUser(int sock,int clienttype,char* username);
 char* parseClientUserFindUser(int sock,void* buf,int serverid,int* outResult);
 int createServerUserFindUser(int sock,int clienttype,user_info_t* userinfo);
-int parseServerUserFindUser(int sock,void* buf,int* outResult);
+user_info_t* parseServerUserFindUser(int sock,void* buf,int* outResult);
 
 char* parseClientUserAddUser(int sock,void* buf,int serverid,int* outResult);
 int createClientUserAddUser(int sock,int clienttype,char* username,char* friendname);
