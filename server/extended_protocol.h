@@ -38,7 +38,7 @@ int createClientUserReg(int sock,int clienttype,char* username);
 char* parseServerUserReg(int sock,void* buf,char* outResult);
 char* parseClientUserReg(int sock,void* buf,int serverid,char* drivceId,int* outResult);
 
-int parseServerUserLogin(int sock,void* buf,int* outResult);
+user_info_t* parseServerUserLogin(int sock,void* buf,int* outResult);
 int createServerUserLogin(int sock,int serverid,int isSuccess,char* username);
 char* parseClientUserLogin(int sock,void* buf,int serverid,char* drivceId,int* outResult);
 int createClientUserLogin(int sock,int clienttype,char* username);

@@ -71,5 +71,6 @@ int createServerMessage(int sock,int serverid,push_message_info_t* info,char* tm
 int parseServerMessage(int sockfd,void* bufs,server_header_2_t* header,
 		char* fromdriveceId,char* messageid,char** content,int recvlen,char* tempPath);
 		
-int createServerMessageReply(int sock,int serverid,char* messageid);		
+int createServerMessageReply(int sock,int serverid,char* messageid);	
+char* parseServerMessageReply(void* bufs,char* outMessageid);	
 #endif /* !PARSE_COMMADN_H */

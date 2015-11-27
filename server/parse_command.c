@@ -575,3 +575,10 @@ int createServerMessageReply(int sock,int serverid,char* messageid){
  	int ret = send(sock,buff,length,0);
  	return ret;
 }
+
+char* parseServerMessageReply(void* bufs,char* outMessageid){
+	int length = ntohs(*(uint16_t*)buf);
+	bufs += sizeof(uint16_t);
+	strcpy(outMessageid,bufs,length);	
+	return outMessageid;
+}

@@ -225,7 +225,7 @@ int createServerUserLogin(int sock,int serverid,int isSuccess,char* username){
 	return ret;	
 }
 
-int parseServerUserLogin(int sock,void* buf,int* outResult){
+user_info_t* parseServerUserLogin(int sock,void* buf,int* outResult){
 	uint16_t length = ntohs(*(uint16_t*)buf);
 	buf += sizeof(uint16_t);
 	char *txt = malloc(length);
@@ -235,15 +235,18 @@ int parseServerUserLogin(int sock,void* buf,int* outResult){
 	if(!json){
 		free(txt);
 		return -1;
+	}	
+	int isSucess = cJSON_GetObjectItem(json,"result")->valueint;			
+	user_info_t* info = NULL;
+	if(isSucess){				
+		char* str = cJSON_GetObjectItem(json,"username")->valuestring;
+		strncpy(info->username,str,strlen(str));	
+		//free(str);
+		str = cJSON_GetObjectItem(json,"userid")->valuestring;	
+		strncpy(info->userid,str,strlen(str));
+		*outResult = isSucess;	
 	}
-	char* str = cJSON_GetObjectItem(json,"username")->valuestring;	
-	char* username = malloc(strlen(str)+1);
-	strncpy(username,str,strlen(str));	
-	//free(str);
-	//str = cJSON_GetObjectItem(json,"userid")->valuestring;	
-	int isSucess = cJSON_GetObjectItem(json,"result")->valueint;	
-	//char* userid = malloc(strlen(str)+1);
-	*outResult = isSucess;	
+
 	free(txt);
 	cJSON_Delete(json);
 	return isSucess;

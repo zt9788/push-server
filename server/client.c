@@ -1,3 +1,24 @@
+/******************************************************************************
+  Copyright (c) 2015 by Baida.zhang(Tong.zhang)  - zt9788@126.com
+
+Permission is hereby granted, free of charge, to any person obtaining a copy of
+this software and associated documentation files (the "Software"), to deal in
+the Software without restriction, including without limitation the rights to
+use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies
+of the Software, and to permit persons to whom the Software is furnished to do
+so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+******************************************************************************/
 #include <stdio.h>
 #include <string.h>
 #include <errno.h>
@@ -37,31 +58,6 @@
 #define __DEBUG(format, ...) printf("FILE: "__FILE__", LINE: %d: "format"/n", __LINE__, ##__VA_ARGS__)
 
 #define CLIENT_TYPE 1
-/*
-typedef struct pushstruct
-{
-    CLIENT* client;
-    pthread_mutex_t lock;
-    int isexit;
-    int timeout;
-} pushstruct;
-*/
-/*
-typedef struct thread_struct
-{
-    int sockfd;
-    pthread_mutex_t lock;
-//    int isexit;
-//  char token[255];
-} thread_struct;
-*/
-typedef struct client_config{
-	char serverip[64];
-	int port;
-	char drivceId[64];
-	char tempPath[500];
-	void* ptr;
-}client_config_t;
 
 
 
@@ -89,65 +85,18 @@ void* send_message_processer(void* data)
         pthread_mutex_lock(&send_lock);        
         pthread_cond_wait(&queue_send, &send_lock);
             //LOGI("jinrule");
-            //head = sendlist;
          while(sendlist->len>0)
-//         while(head)
         {
-            //sendlist = (send_message_t*)head->next; 
 			list_node_t* node = list_rpop(sendlist);
 			send_message_t* sendmessage = node->val;
             int len = 0;
-//            int length = sendmessage->len;
-//            void* buff = sendmessage->me;            
+          
             //LOGI("total filesize %d",length);
             pthread_mutex_lock(&lock);
             createClientMessage(g_sock,
 								CLIENT_TYPE,sendmessage->messagetype,
 								sendmessage->delytime,sendmessage->message,sendmessage->sendto);
-            /*
-            if(length>MAXBUF)
-            {
-                while(1)
-                {
-                    int tempRet = 0;
-                    if((length-len)>MAXBUF)
-                    {
-                        tempRet = send(g_sock, buff+len, MAXBUF, 0);
-                        //LOGI("send len %d,%d,%d",tempRet,len,length-len);
-                        if(tempRet < 0)
-                        {
-                            pthread_mutex_unlock(&lock);
-                            goto send_error2;
-                        }
-                    }
-                    else
-                    {
-                        tempRet = send(g_sock, buff+len, length-len, 0);
-                        //LOGI("send len %d,%d,%d",tempRet,len,length-len);
-                        if(tempRet < 0)
-                        {
-                            pthread_mutex_unlock(&lock);
-                            goto send_error2;
-                        }
-                        len += tempRet;
-                        break;
-                    }
-                    len += tempRet;
-                }
-                
 
-            }
-            else
-            {
-                len = send(g_sock, buff, length, 0);
-                //LOGI("send len %d",len);
-                if(len < 0)
-                {
-                    //pthread_mutex_unlock(&fd_lock);
-                    goto send_error2;
-                }
-            }
-            */
             //recv response
             unsigned char rebuf[MAXBUF];
             len = recv(g_sock,rebuf,MAXBUF,0);
@@ -157,14 +106,8 @@ void* send_message_processer(void* data)
             server_header_2_t header;
             memset(&header,0,sizeof(server_header_2_t));
             void* buffrecv = parseServerHeader(rebuf,&header);
-            char fromdrivceId[64]= {0};
             char messageid[64]= {0};
-            char* message = NULL;
-            /*
-            int ret = parseServerMessage(g_sock,buffrecv,
-                                         &header,fromdrivceId,
-										 messageid,&message,len,"");
-			*/
+			parseServerMessageReply(buffrecv,messageid);
 			
 send_error2:
 			
@@ -178,9 +121,7 @@ send_error2:
 				
             free(sendmessage->message);
             list_destroy(sendmessage->sendto);
-            //free(sendmessage->messageid);
             free(sendmessage);
-            //LOGI("1eventList error！errno:%d，error msg: '%s'\n", errno, strerror(errno));
         }
     }
     return NULL;
@@ -272,7 +213,7 @@ void sendping(int sockfd)
 /**
  * time to ping server
  */
-void timetoping(void* param)
+void ping_process(void* param)
 {
     while(g_isexit == 0)
     {
@@ -431,10 +372,7 @@ int message_processer(char* serverip,int port,char* drivceId,char* tempPath,void
     }
     return 0;
 }
-void* client_thread(void* param){
-	client_config_t* config = param;
-	message_processer(config->serverip,config->port,config->drivceId,config->tempPath,config->ptr);
-}
+
 
 int start_client(char* serverip,int port,char* drivceId,char* tempPath,void* ptr){
    	client_config_t config;
@@ -445,22 +383,24 @@ int start_client(char* serverip,int port,char* drivceId,char* tempPath,void* ptr
 	config.ptr = ptr;
 	pthread_mutex_init(&lock,NULL);
 
-    if (pthread_create(&core_thread_id, NULL, (void *) client_thread, &config) != 0)
+    if (pthread_create(&core_thread_id, NULL, (void *) recv_message_thread, &config) != 0)
     {
         printf("%spthread_create failed, errno%d, error%s\n", __FUNCTION__,
                errno, strerror(errno));
 		return -1;
     }    
-	if(pthread_create(&ping_thread_id,NULL,(void *) timetoping,NULL) != 0){
+	if(pthread_create(&ping_thread_id,NULL,(void *) ping_thread	,NULL) != 0){
 		printf("%spthread_create failed, errno%d, error%s\n", __FUNCTION__,
 	   errno, strerror(errno));
 		return -1;
 	}
-	if(pthread_create(&send_thread_id,NULL,(void *) send_message_processer,NULL) != 0){
+	
+	if(pthread_create(&send_thread_id,NULL,(void *) send_message_thread,NULL) != 0){
 		printf("%spthread_create failed, errno%d, error%s\n", __FUNCTION__,
 	   errno, strerror(errno));
 		return -1;
 	}
+	
 }
 /*
 void sendMessage(char* clientMessageid,
