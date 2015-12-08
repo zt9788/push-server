@@ -467,47 +467,65 @@ int main(int argc, char **argv)
         if(!strncasecmp(buf,"reg",3)){
         	
         	sscanf(buf,"%*s%s",username);
-        	printf("username");
-			pthread_mutex_lock(&lock);
-			createClientUserReg(g_sock,CLIENT_TYPE,username);
-			__DEBUG("\n");
-			recvReturn(g_sock);
-			pthread_mutex_unlock(&lock);
+        	user_info_t* uinfo = user_register(username,"");
+        	print_userinfo(uinfo);
+        	freeUserInfo(uinfo);
+			//pthread_mutex_lock(&lock);
+			//createClientUserReg(g_sock,CLIENT_TYPE,username);
+			//__DEBUG("\n");
+			//recvReturn(g_sock);
+			//pthread_mutex_unlock(&lock);
         	continue;
         }
         if(!strncasecmp(buf,"login",5)){
 			pthread_mutex_lock(&lock);
-			createClientUserLogin(g_sock,1,username);
-			recvReturn(g_sock);
-			pthread_mutex_unlock(&lock);
+			user_info_t* uinfo = user_login(username,"");
+			print_userinfo(uinfo);
+			freeUserInfo(uinfo);
+			//createClientUserLogin(g_sock,1,username);
+			//recvReturn(g_sock);
+			//pthread_mutex_unlock(&lock);
         	continue;
         }
         if(!strncasecmp(buf,"find",4)){
         	char fuser[255];
         	sscanf(buf,"%*s%s",fuser);
-			pthread_mutex_lock(&lock);
-			createClientUserFindUser(g_sock,1,fuser);
-			recvReturn(g_sock);
-			pthread_mutex_unlock(&lock);
+        	user_info_t* uinfo = find_User(fuser);
+        	print_userinfo(uinfo);
+        	freeUserInfo(uinfo);
+			//pthread_mutex_lock(&lock);
+			//createClientUserFindUser(g_sock,1,fuser);
+			//recvReturn(g_sock);
+			//pthread_mutex_unlock(&lock);
         	continue;
         }
         if(!strncasecmp(buf,"add",3)){
         	char fuser[255];
         	sscanf(buf,"%*s%s",fuser);
-			pthread_mutex_lock(&lock);
-			createClientUserAddUser(g_sock,1,username,fuser);
-			recvReturn(g_sock);
-			pthread_mutex_unlock(&lock);
+        	user_info_t* info = add_Friend(username,fuser);
+        	print_userinfo(uinfo);
+			freeUserInfo(uinfo);
+			//pthread_mutex_lock(&lock);
+			//createClientUserAddUser(g_sock,1,username,fuser);
+			//recvReturn(g_sock);
+			//pthread_mutex_unlock(&lock);
         	continue;
         }
 		if(!strncasecmp(buf,"get",3)){
 //        	char fuser[255];
 //        	sscanf(buf,"%*s%s",fuser);
-			pthread_mutex_lock(&lock);
+			//pthread_mutex_lock(&lock);
 			//createClientUserAddUser(g_sock,1,username,fuser);
-			createClientUserGetFriends(g_sock,1,username);
-			recvReturn(g_sock);
-			pthread_mutex_unlock(&lock);
+			//createClientUserGetFriends(g_sock,1,username);
+			//recvReturn(g_sock);			
+//			pthread_mutex_unlock(&lock);
+			list_t* list = get_MyFriends(username);
+			if(list != NULL){
+				for(i=0;i<list->len;i++){
+					print_userinfo(list_at(list,i)->val);
+				}
+			}
+			list_destroy(list);
         	continue;
         }
         int len = -1;
@@ -521,7 +539,12 @@ int main(int argc, char **argv)
         int trylock = pthread_mutex_trylock(&lock);
         if(trylock == EBUSY){
         	pthread_mutex_lock(&lock);
-        }			
+        }
+		if(isfile == 0)	
+			sendMessage(MESSAGE_TYPE_FILE,0,buf,send_list);
+		else
+			sendMessage(MESSAGE_TYPE_FILE,0,filepath,send_list);
+		/*	
         if(isfile == 0)
             len = createClientMessage(g_sock,MESSAGE_TYPE_TXT,1,0,buf,send_list);
         else
@@ -538,6 +561,7 @@ int main(int argc, char **argv)
             printf("msg:'%s  failed!\n", buf);
             break;
         }
+        */
 
     }
     //pthread_join(thr_id,NULL);

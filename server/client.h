@@ -73,7 +73,7 @@ user_info_t* user_register(char* userName,
 user_info_t* user_login(char* name,
 			char* password/* the password is nothing to do*/);					
 			
-user_info_t* add_Friend(char* friendName);
+user_info_t* add_Friend(char* username,char* friendName);
 
 user_info_t* find_User(char* userName);
 

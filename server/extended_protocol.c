@@ -406,7 +406,7 @@ user_info_t* parseServerUserFindUser(int sock,void* buf,int* outResult){
 	*outResult = isSucess;	
 	free(txt);
 	cJSON_Delete(json);
-	return *outResult;
+	return info;//*outResult;
 }
 
 

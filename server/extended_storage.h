@@ -36,7 +36,7 @@ typedef struct user_drivce{
 	char token[64];
 }user_drivce_t;
 */
-
+void print_userinfo(user_info_t* userinfo);
 char* getUsernameByUserId(char* userid,char* outUsername);
 char* getUserIdByUsername(char* username,char* outUserid);
 void freeUserInfo(user_info_t* userinfo);
